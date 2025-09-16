@@ -338,7 +338,7 @@ python -m metharct.cli.main comprehensive "your_protein.faa" -o results/
 
 MethArCT includes the following metabolic pathway databases:
 
-### Methane Metabolic Pathways (8 types)
+### Methane Metabolic Pathways (11 types)
 - Various methanogenesis pathways including formate methane, acetate methane, methanol methane, etc.
 
 ### Sulfur Metabolic Pathways (6 types)
@@ -347,7 +347,7 @@ MethArCT includes the following metabolic pathway databases:
 ### Nitrogen Metabolic Pathways (4 types)
 - Nitrification, denitrification, ammonia oxidation, etc.
 
-### Other Pathways (3 types)
+### Others (2 types)
 - Genes related to salt tolerance and culturability assessment
 
 ## Technical Support
