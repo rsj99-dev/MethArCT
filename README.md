@@ -366,7 +366,7 @@ MethArCT includes the following metabolic pathway databases:
 ## Project Information
 
 ### License
-MIT License - See the [LICENSE](LICENSE) file for details
+GPL-3.0 License - See the [LICENSE](LICENSE) file for details
 
 ### Version Information
 - **Current Version**: 1.0.0
