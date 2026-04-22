@@ -186,10 +186,10 @@ diamond --help
 **Filename with special characters**:
 ```bash
 # Wrong
-metharct diamond protein(1).faa -o results/
+metharct diamond protein.faa -o results/
 
 # Correct
-metharct diamond "protein(1).faa" -o results/
+metharct diamond "protein.faa" -o results/
 ```
 
 **WSL Configuration**:
@@ -227,4 +227,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 If you use MethArCT in your research, please cite:
 
-[coming soon]
+[Coming soon]
