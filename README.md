@@ -227,4 +227,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 If you use MethArCT in your research, please cite:
 
-[To be updated with your publication DOI]
+[coming soon]
