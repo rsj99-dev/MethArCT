@@ -30,7 +30,7 @@ MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox 
 
 ### Step 1: Get the Project
 ```bash
-git clone https://github.com/your-username/MethArCT.git
+git clone https://github.com/rsj99-dev/MethArCT.git
 cd MethArCT
 ```
 
@@ -73,16 +73,9 @@ metharct --help
 
 For temperature prediction or genome quality assessment features:
 
-### Tome Installation (Temperature Prediction)
-```bash
-conda install -c bioconda tome
-tome --help
-```
-
 ### CheckM2 Installation (Genome Quality Assessment)
-```bash
-conda install -c bioconda checkm2
-checkm2 --help
+```
+Extract "checkm2_db.zip" to the root directory of the MethArCT folder.
 ```
 
 ### Windows Users Special Note
@@ -123,10 +116,10 @@ metharct comprehensive "protein.faa" -o results/ --skip-tome --skip-checkm2
 **Full Analysis (with optional tools)**:
 ```bash
 # Complete analysis with all features
-metharct comprehensive "protein(1).faa" -o results/
+metharct comprehensive "protein.faa" -o results/
 
 # Run optional analyses separately
-metharct tome "protein(1).faa" -o results/        # Requires Tome
+metharct tome "protein.faa" -o results/        # Requires Tome
 metharct checkm2 "genome.fasta" -o results/      # Requires CheckM2
 ```
 
