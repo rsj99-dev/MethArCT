@@ -2,12 +2,13 @@
 
 A machine learning-based tool for predicting microbial optimal growth temperature (OGT) and analyzing enzyme functions.
 
-## Installation
+**## installation**
 
 ```bash
 pip install pandas numpy scikit-learn joblib requests biopython
 
-## Usage
+
+**## Usage**
 
 ```bash
 Single Genome OGT Prediction
