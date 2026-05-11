@@ -18,8 +18,8 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 setup(
     name="metharct",
     version="1.0.0",
-    author="Your Name",
-    author_email="your-email@example.com",
+    author="rsj99",
+    author_email="rsj1999@njtech.edu.cn",
     description="Methanogenic Archaeal Culturomics Toolkit",
     long_description=long_description,
     long_description_content_type="text/markdown",
