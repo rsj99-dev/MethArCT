@@ -17,7 +17,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="metharct",
-    version="1.0.0",
+    version="0.1.0",
     author="rsj99",
     author_email="rsj1999@njtech.edu.cn",
     description="Methanogenic Archaeal Culturomics Toolkit",
