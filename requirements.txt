@@ -1,0 +1,26 @@
+# Core dependencies
+biopython>=1.79
+pandas>=1.3.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+pyyaml>=5.4
+tqdm>=4.60.0
+requests>=2.25.0
+joblib>=1.0.0
+loguru>=0.6.0
+
+# Optional dependencies for full functionality
+# diamond-annotator>=1.0  # For Diamond BLAST analysis
+# checkm2>=1.0           # For genome quality assessment
+
+# Development dependencies
+pytest>=7.0
+pytest-cov>=4.0
+black>=23.0
+flake8>=6.0
+mypy>=1.0
+
+# Documentation dependencies
+sphinx>=7.0
+sphinx-rtd-theme>=1.0
+myst-parser>=2.0

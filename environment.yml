@@ -1,0 +1,38 @@
+name: metharct
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  
+  # Bioinformatics tools
+  - diamond>=2.0.0
+  - checkm2
+  
+  # Scientific computing - 兼容checkm2版本
+  - numpy>=1.19.0,<1.20.0  # 兼容checkm2，避免np.object错误
+  - pandas>=1.3.0,<1.5.0
+  - scipy>=1.7.0,<1.9.0
+  - scikit-learn>=0.24.0,<1.0.0  # 兼容numpy 1.19.x
+  
+  # Bioinformatics libraries
+  - biopython>=1.79
+  
+  # Visualization
+  - matplotlib>=3.3.0,<3.5.0
+  
+  # System utilities
+  - wget
+  - curl
+  
+  # pip dependencies
+  - pip:
+    - click>=8.0.0
+    - tqdm>=4.62.0
+    - colorama>=0.4.4
+    - plotly>=5.0.0
+    - pyyaml>=5.4.0
+    - loguru>=0.5.0
+    - configparser>=5.0.0

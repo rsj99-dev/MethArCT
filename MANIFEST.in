@@ -1,0 +1,44 @@
+# Include README file
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+include PACKAGE_SUMMARY.md
+
+# Include configuration files
+include metharct_config.yaml
+include requirements.txt
+include environment.yml
+
+# Include package data
+recursive-include metharct/data *
+recursive-include metharct *.py
+recursive-include metharct *.yaml
+recursive-include metharct *.yml
+
+# Include documentation
+recursive-include docs *
+
+# Include example files
+include mzd130b.fa.faa
+include install.py
+include example_analysis.py
+
+# Include test files (if any)
+recursive-include tests *
+
+# Exclude development files
+exclude .gitignore
+exclude .github/workflows/*
+exclude __pycache__/*
+exclude *.pyc
+exclude *.pyo
+exclude *.pyd
+exclude .coverage
+exclude .pytest_cache/*
+
+# Exclude Tome source directory (already installed as dependency)
+exclude Tome-1.1.0/*
+
+# Exclude Diamond executable (users should install separately)
+exclude diamond.exe

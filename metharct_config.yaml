@@ -1,0 +1,82 @@
+tools:
+  diamond:
+    path: "./diamond.exe"
+    use_wsl: false
+    threads: 4
+    evalue: 1e-5
+    max_target_seqs: 1
+    identity_threshold: 30.0
+  
+  tome:
+    path: "python_module"  # 使用Python模块而不是命令行工具
+    wsl_path: "wsl tome"
+    use_wsl: false
+    threads: 4
+    
+  checkm2:
+    path: "checkm2"
+    wsl_path: "wsl checkm2"
+    use_wsl: false
+    threads: 4
+
+databases:
+  base_dir: "data/databases"
+  pathway_names:
+    "CO2-CH4": "CO2还原产甲烷"
+    "JIAAN-CH4": "甲胺产甲烷"
+    "JIACHUN-CH4": "甲醇产甲烷"
+    "JIALIUCHUN-CH4": "甲硫醇产甲烷"
+    "JIASUAN-CH4": "甲酸产甲烷"
+    "JIAYANGJI-CH4": "甲氧基产甲烷"
+    "YISUAN-CH4": "乙酸产甲烷"
+    "C16-CH4": "长链脂肪酸产甲烷"
+    "CO-CH4": "CO产甲烷"
+    "甘氨酸甜菜碱产甲烷": "甘氨酸甜菜碱产甲烷"
+    "硫代丙酸甲酯产甲烷": "硫代丙酸甲酯产甲烷"
+    "四甲基铵产甲烷": "四甲基铵产甲烷"
+    "甲醇歧化产甲烷": "甲醇歧化产甲烷"
+  methane_pathways:
+    CO2-CH4: "methane/processed_CO2-CH4.fasta"
+    JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
+    JIACHUN-CH4: "methane/processed_JIACHUN-CH4.fasta"
+    JIALIUCHUN-CH4: "methane/processed_JIALIUCHUN-CH4.fasta"
+    YISUAN-CH4: "methane/processed_YISUAN-CH4.fasta"
+    C16-CH4: "methane/processed_C16-CH4.fasta"
+    CO-CH4: "methane/processed_CO-CH4.fasta"
+    JIASUAN-CH4: "methane/processed_JIASUAN-CH4.fasta"
+    JIAYANGJI-CH4: "methane/processed_JIAYANGJI-CH4.fasta"
+    ZHIFANGSUAN-CH4: "methane/processed_ZHIFANGSUAN-CH4.fasta"
+    2JIAAN-CH4: "methane/processed_2JIAAN-CH4.fasta"
+    3JIAAN-CH4: "methane/processed_3JIAAN-CH4.fasta"
+    甘氨酸甜菜碱产甲烷: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
+    硫代丙酸甲酯产甲烷: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
+    四甲基铵产甲烷: "methane/四甲基铵产甲烷.fasta"
+    甲醇歧化产甲烷: "methane/甲醇歧化产甲烷.fasta"  # 使用甲醇歧化产甲烷的专用参考序列
+  sulfur_pathways:
+    ASR: "sulfur/Assimilatory sulfate reduction.fasta"
+    SO: "sulfur/Sulfide oxidation.fasta"
+    SOX: "sulfur/Sulfur oxidation, SOX system.fasta"
+    S4I: "sulfur/Sulfur oxidation, tetrathionate intermediate (S4I) pathway.fasta"
+    SR: "sulfur/Sulfur reduction.fasta"
+    DSR: "sulfur/Dissimilatory sulfate reduction.fasta"
+  nitrogen_pathways:
+    ANR: "nitrogen/Assimilatory nitrate reduction.fasta"
+    DEN: "nitrogen/Denitrification.fasta"
+    DNR: "nitrogen/Dissimilatory nitrate reduction.fasta"
+    NIT: "nitrogen/Nitrification.fasta"
+  salt_tolerance: "salt/naiyan_data.fasta"
+  cultivation:
+    base_dir: "cultivation"
+    amino_acids: "path.aa"
+    vitamins: "path.vc"
+    nucleotides: "path_hesuan"
+    atp: "path_atp"
+
+reference_sequence_counts:
+    # 更新后的参考序列计数
+    JIASUAN-CH4: 18  # 甲酸产甲烷途径：原15个 + 新增elpA,elpB,elpC共3个
+    CO2-CH4: 15     # 二氧化碳产甲烷途径：原12个 + 新增elpA,elpB,elpC共3个
+    甘氨酸甜菜碱产甲烷: 3     # 甘氨酸甜菜碱产甲烷途径：MtgB、dimethylamine corrinoid protein 3、MV10360
+    硫代丙酸甲酯产甲烷: 4
+    四甲基铵产甲烷: 3     # 四甲基铵产甲烷途径：MtqA/MT2、MtqB、MtqC
+    甲醇歧化产甲烷: 15     # 甲醇歧化产甲烷途径：使用与甲醇产甲烷相同的参考序列数
