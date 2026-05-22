@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 import os
 import sys
 
-# 读取README文件
+# Read README file
 def read_readme():
     try:
         with open("README.md", "r", encoding="utf-8") as fh:
@@ -17,7 +17,7 @@ def read_readme():
     except FileNotFoundError:
         return "MethArCT - Methanogenic Archaea Metabolic Pathway Analysis Tool"
 
-# 读取requirements文件
+# Read requirements file
 def read_requirements():
     try:
         with open("requirements.txt", "r", encoding="utf-8") as fh:
@@ -33,15 +33,17 @@ def read_requirements():
             "requests>=2.25.0"
         ]
 
-# 获取版本信息
+# Get version information
 def get_version():
-    version_file = os.path.join("metharct", "__init__.py")
-    if os.path.exists(version_file):
-        with open(version_file, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("__version__"):
-                    return line.split("=")[1].strip().strip('"').strip("'")
-    return "1.0.0"
+    # For this release, version is hardcoded to 0.2.1
+    # Original dynamic read is commented out below
+    # version_file = os.path.join("metharct", "__init__.py")
+    # if os.path.exists(version_file):
+    #     with open(version_file, "r", encoding="utf-8") as f:
+    #         for line in f:
+    #             if line.startswith("__version__"):
+    #                 return line.split("=")[1].strip().strip('"').strip("'")
+    return "0.2.1"
 
 setup(
     name="metharct",
