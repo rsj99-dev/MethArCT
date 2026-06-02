@@ -222,10 +222,13 @@ class TomeAnalyzer:
                 if not self._try_direct_module_import():
                     return {'status': 'error', 'message': 'Tome Python module not available'}
 
-            ogt_value = self._tome_module.ogt_pred(str(input_file))
+            tome = self._tome_module
+            model, means, stds, features = tome.load_model()
+            ogt_value = tome.predict(str(input_file), model, means, stds, features, self.threads)
 
+            filename = os.path.basename(str(input_file))
             with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(f"predOGT\tconfidence\n{ogt_value}\t0.95\n")
+                f.write(f"FileName\tpredOGT (C)\n{filename}\t{ogt_value}\n")
 
             self.logger.info(f"Tome module prediction: {ogt_value}°C")
             return {'status': 'success', 'output_file': output_file}
