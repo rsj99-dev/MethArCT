@@ -375,9 +375,17 @@ class PathwayPredictor:
         if not temperature_data:
             return {'status': 'no_data'}
         
-        # Extract temperature information
-        avg_ogt = temperature_data.get('average_ogt', 0)
-        temperature_category = temperature_data.get('temperature_category', 'unknown')
+        # Extract OGT: support both 'average_ogt' and Tome's 'predOGT' key name
+        avg_ogt = temperature_data.get('average_ogt')
+        if avg_ogt is None:
+            avg_ogt = temperature_data.get('predOGT', 0)
+        avg_ogt = float(avg_ogt)
+
+        # Derive temperature category if not directly provided
+        temperature_category = temperature_data.get('temperature_category')
+        if not temperature_category:
+            temperature_category = self._categorize_temperature(avg_ogt)
+
         confidence = temperature_data.get('confidence', 0)
         
         return {
@@ -386,6 +394,18 @@ class PathwayPredictor:
             'confidence': confidence,
             'adaptation_assessment': self._assess_temperature_adaptation(avg_ogt)
         }
+
+    @staticmethod
+    def _categorize_temperature(temperature: float) -> str:
+        """Classify organism by optimal growth temperature."""
+        if temperature < 20:
+            return 'Psychrophilic'
+        elif temperature < 40:
+            return 'Mesophilic'
+        elif temperature < 60:
+            return 'Thermophilic'
+        else:
+            return 'Hyperthermophilic'
     
     def _assess_temperature_adaptation(self, ogt: float) -> Dict:
         """
