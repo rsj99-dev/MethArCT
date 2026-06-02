@@ -417,32 +417,35 @@ class PathwayPredictor:
         Returns:
             Temperature adaptation assessment
         """
+        # Use the actual predicted OGT as the recommended cultivation temperature
+        cultivation_temp = f"{ogt:.1f}°C"
+
         if ogt < 15:
             return {
                 'category': 'psychrophile',
                 'description': 'Cold-adapted organism',
-                'cultivation_temperature': '4-15°C',
+                'cultivation_temperature': cultivation_temp,
                 'special_requirements': 'Cold cultivation conditions required'
             }
         elif ogt < 45:
             return {
                 'category': 'mesophile',
                 'description': 'Moderate temperature organism',
-                'cultivation_temperature': '20-40°C',
+                'cultivation_temperature': cultivation_temp,
                 'special_requirements': 'Standard cultivation conditions'
             }
         elif ogt < 80:
             return {
                 'category': 'thermophile',
                 'description': 'Heat-loving organism',
-                'cultivation_temperature': '45-75°C',
+                'cultivation_temperature': cultivation_temp,
                 'special_requirements': 'Elevated temperature cultivation required'
             }
         else:
             return {
                 'category': 'hyperthermophile',
                 'description': 'Extreme heat-loving organism',
-                'cultivation_temperature': '>80°C',
+                'cultivation_temperature': cultivation_temp,
                 'special_requirements': 'High-temperature cultivation systems required'
             }
     
