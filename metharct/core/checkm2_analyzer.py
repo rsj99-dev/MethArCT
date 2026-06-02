@@ -23,7 +23,7 @@ class CheckM2Analyzer:
         self.config = config or Config()
         self.logger = get_logger("checkm2_analyzer")
         
-        # Tool configuration - 支持WSL
+        # Tool configuration - WSL support
         self.use_wsl = self.config.get('tools.checkm2.use_wsl', False)
         
         if self.use_wsl:
@@ -52,14 +52,14 @@ class CheckM2Analyzer:
     
     def _check_checkm2_availability(self) -> bool:
         """
-        Check if CheckM2 tool is available - 支持WSL环境
+        Check if CheckM2 tool is available - WSL environment support
         
         Returns:
             True if CheckM2 is available, False otherwise
         """
         try:
             if self.use_wsl:
-                # WSL环境下的检查
+                # Check in WSL environment
                 result = subprocess.run(
                     ['wsl', 'checkm2', '--version'],
                     capture_output=True,
@@ -67,7 +67,7 @@ class CheckM2Analyzer:
                     timeout=30
                 )
             else:
-                # 本地环境下的检查
+                # Check in local environment
                 result = subprocess.run(
                     [self.checkm2_path, '--version'],
                     capture_output=True,
@@ -77,11 +77,11 @@ class CheckM2Analyzer:
             
             if result.returncode == 0:
                 version = result.stdout.strip()
-                env_type = "WSL" if self.use_wsl else "本地"
-                self.logger.info(f"CheckM2工具可用 ({env_type}): {version}")
+                env_type = "WSL" if self.use_wsl else "Local"
+                self.logger.info(f"CheckM2 tool available ({env_type}): {version}")
                 return True
             else:
-                # 尝试备用的help命令
+                # Try alternative help command
                 if self.use_wsl:
                     result = subprocess.run(
                         ['wsl', 'checkm2', '--help'],
@@ -98,11 +98,11 @@ class CheckM2Analyzer:
                     )
                 
                 if result.returncode == 0 and 'checkm2' in result.stdout.lower():
-                    env_type = "WSL" if self.use_wsl else "本地"
-                    self.logger.info(f"CheckM2工具可用 ({env_type}) (版本未知)")
+                    env_type = "WSL" if self.use_wsl else "Local"
+                    self.logger.info(f"CheckM2 tool available ({env_type}) (version unknown)")
                     return True
                 else:
-                    self.logger.error(f"CheckM2工具不可用: {result.stderr}")
+                    self.logger.error(f"CheckM2 tool not available: {result.stderr}")
                     return False
                 
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
@@ -126,10 +126,10 @@ class CheckM2Analyzer:
         """
         # Check if tool is available
         if not self.tool_available:
-            self.logger.warning("CheckM2工具不可用，跳过基因组质量评估")
+            self.logger.warning("CheckM2 tool not available, skipping genome quality assessment")
             return {
                 'status': 'skipped',
-                'message': 'CheckM2工具不可用',
+                'message': 'CheckM2 tool not available',
                 'completeness': 0.0,
                 'contamination': 0.0,
                 'quality_grade': 'Unknown',
@@ -220,7 +220,7 @@ class CheckM2Analyzer:
                 capture_output=True,
                 text=True,
                 timeout=3600,  # 1 hour timeout
-                cwd=os.path.dirname(output_dir)  # 在父目录运行，避免路径问题
+                cwd=os.path.dirname(output_dir)  # Run in parent directory to avoid path issues
             )
             
             # Log output for debugging
@@ -487,7 +487,7 @@ class CheckM2Analyzer:
             results: Analysis results
             output_prefix: Output file prefix
         """
-        # 只保存一个CSV汇总文件，避免生成不必要的JSON文件
+        # Save only one CSV summary file, avoid generating unnecessary JSON files
         csv_file = os.path.join(self.results_dir, f"{output_prefix}_checkm2_summary.csv")
         
         if results['results']:

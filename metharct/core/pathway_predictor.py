@@ -115,10 +115,19 @@ class PathwayPredictor:
                     'csv'
                 )
                 
+                # Amino acid biosynthesis analysis (20 standard amino acids)
+                aa_analysis = self.cultivation_analyzer.analyze_amino_acid_biosynthesis(cultivation_results)
+                self.cultivation_analyzer.print_amino_acid_report(aa_analysis)
+                
+                # Export amino acid CSV
+                aa_csv_output = os.path.join(self.results_dir, f"{output_prefix}_amino_acid_biosynthesis.csv")
+                self.cultivation_analyzer.export_amino_acid_csv(aa_analysis, aa_csv_output)
+                
                 comprehensive_results['analyses_performed'].append('cultivation')
                 comprehensive_results['results']['cultivation'] = {
                     'pathway_results': cultivation_results,
-                    'cultivability_assessment': cultivability_assessment
+                    'cultivability_assessment': cultivability_assessment,
+                    'amino_acid_biosynthesis': aa_analysis
                 }
                 self.logger.info("Cultivation analysis completed")
             except Exception as e:
@@ -235,6 +244,14 @@ class PathwayPredictor:
             if 'cultivability_assessment' in cultivation_data:
                 integrated['cultivability_assessment']['metabolic_pathways'] = \
                     cultivation_data['cultivability_assessment']
+            
+            # Amino acid biosynthesis analysis
+            if 'amino_acid_biosynthesis' in cultivation_data:
+                aa_data = cultivation_data['amino_acid_biosynthesis']
+                integrated['amino_acid_biosynthesis'] = {
+                    'summary': aa_data.get('summary', {}),
+                    'amino_acid_status': aa_data.get('amino_acid_status', {})
+                }
         
         # Generate overall assessment
         integrated['overall_assessment'] = self._generate_overall_assessment(integrated)
@@ -550,6 +567,17 @@ class PathwayPredictor:
         else:
             recommendations.append("Challenging cultivation - may require specialized conditions")
         
+        # Amino acid biosynthesis recommendations
+        aa_biosynthesis = integrated_data.get('amino_acid_biosynthesis', {})
+        if aa_biosynthesis:
+            aa_summary = aa_biosynthesis.get('summary', {})
+            missing_aa = aa_summary.get('missing_list', [])
+            if missing_aa:
+                missing_names = [aa.split(' (')[0] for aa in missing_aa]
+                recommendations.append(
+                    f"Missing or incomplete amino acid biosynthesis: {', '.join(missing_names)} - consider supplementing culture medium"
+                )
+        
         # Overall assessment recommendations
         overall = integrated_data.get('overall_assessment', {})
         if overall.get('confidence', 0) < 0.5:
@@ -657,6 +685,25 @@ class PathwayPredictor:
                             f.write(f"  Average completeness: {summary.get('average_completeness', 0):.1f}%\n")
                             f.write(f"  Average contamination: {summary.get('average_contamination', 0):.1f}%\n")
                             f.write(f"  Cultivability: {summary.get('cultivability_assessment', {}).get('overall_cultivability', 'Unknown')}\n")
+                        
+                        # Add amino acid biosynthesis summary for cultivation analysis
+                        if analysis_type == 'cultivation' and 'amino_acid_biosynthesis' in analysis_data:
+                            aa_data = analysis_data['amino_acid_biosynthesis']
+                            aa_summary = aa_data.get('summary', {})
+                            f.write(f"\n  Amino Acid Biosynthesis (20 standard amino acids):\n")
+                            f.write(f"  Present: {aa_summary.get('present', 0)}/20\n")
+                            f.write(f"  Missing/Partial: {aa_summary.get('missing_or_partial', 0)}/20\n")
+                            
+                            # List missing amino acids
+                            missing_list = aa_summary.get('missing_list', [])
+                            if missing_list:
+                                missing_names = [aa.split(' (')[0] for aa in missing_list]
+                                f.write(f"  Missing pathways: {', '.join(missing_names)}\n")
+                            
+                            present_list = aa_summary.get('present_list', [])
+                            if present_list:
+                                present_names = [aa.split(' (')[0] for aa in present_list]
+                                f.write(f"  Present pathways: {', '.join(present_names)}\n")
     
     def _save_integrated_csv(self, integrated_data: Dict, output_file: str):
         """

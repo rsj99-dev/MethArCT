@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-MethArCT主分析器
+MethArCT Main Analyzer
 
-整合Diamond、Tome、CheckM2等分析工具的主要分析类
+Primary analysis class integrating Diamond, Tome, CheckM2 and other analysis tools
 """
 
 import os
@@ -21,32 +21,32 @@ from .utils.file_utils import FileUtils
 
 class MethArCTAnalyzer:
     """
-    MethArCT主分析器类
+    MethArCT Main Analyzer Class
     
-    整合所有分析功能的主要接口类
+    Main interface class integrating all analysis functionalities
     """
     
     def __init__(self, config: Optional[Config] = None):
         """
-        初始化MethArCT分析器
+        Initialize MethArCT analyzer
         
         Args:
-            config: 配置对象，如果为None则使用默认配置
+            config: Configuration object, uses default if None
         """
         self.config = config or Config()
         self.logger = get_logger("metharct_analyzer")
         
-        # 初始化各个分析器
+        # Initialize each analyzer
         self.diamond_analyzer = DiamondAnalyzer(self.config)
         self.tome_analyzer = TomeAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
         self.pathway_predictor = PathwayPredictor(self.config)
         
-        # 结果存储目录
+        # Results output directory
         self.results_dir = self.config.get('output.base_dir', 'results')
         FileUtils.ensure_dir(self.results_dir)
         
-        self.logger.info("MethArCT分析器初始化完成")
+        self.logger.info("MethArCT analyzer initialized")
     
     def analyze_comprehensive(self, 
                             input_file: str,
@@ -56,18 +56,18 @@ class MethArCTAnalyzer:
                             run_checkm2: bool = True,
                             **kwargs) -> Dict:
         """
-        执行综合分析
+        Execute comprehensive analysis
         
         Args:
-            input_file: 输入文件路径（FASTA格式）
-            output_dir: 输出目录，如果为None则使用默认目录
-            run_diamond: 是否运行Diamond分析
-            run_tome: 是否运行Tome分析
-            run_checkm2: 是否运行CheckM2分析
-            **kwargs: 其他参数
+            input_file: Input file path (FASTA format)
+            output_dir: Output directory, uses default if None
+            run_diamond: Whether to run Diamond analysis
+            run_tome: Whether to run Tome analysis
+            run_checkm2: Whether to run CheckM2 analysis
+            **kwargs: Other parameters
             
         Returns:
-            包含所有分析结果的字典
+            Dictionary containing all analysis results
         """
         if output_dir is None:
             output_dir = self.results_dir
@@ -80,39 +80,39 @@ class MethArCTAnalyzer:
             'analysis_results': {}
         }
         
-        self.logger.info(f"开始综合分析: {input_file}")
+        self.logger.info(f"Starting comprehensive analysis: {input_file}")
         
         try:
-            # Diamond代谢通路分析
+            # Diamond metabolic pathway analysis
             if run_diamond:
-                self.logger.info("运行Diamond代谢通路分析...")
+                self.logger.info("Running Diamond metabolic pathway analysis...")
                 diamond_results = self.diamond_analyzer.analyze_sequence(
                     input_file, 
                     os.path.join(output_dir, 'diamond')
                 )
                 results['analysis_results']['diamond'] = diamond_results
                 
-            # Tome温度预测分析
+            # Tome temperature prediction analysis
             if run_tome:
-                self.logger.info("运行Tome温度预测分析...")
+                self.logger.info("Running Tome temperature prediction analysis...")
                 tome_results = self.tome_analyzer.analyze(
                     input_file,
                     os.path.join(output_dir, 'tome')
                 )
                 results['analysis_results']['tome'] = tome_results
                 
-            # CheckM2基因组质量评估
+            # CheckM2 genome quality assessment
             if run_checkm2:
-                self.logger.info("运行CheckM2基因组质量评估...")
+                self.logger.info("Running CheckM2 genome quality assessment...")
                 checkm2_results = self.checkm2_analyzer.analyze(
                     input_file,
                     os.path.join(output_dir, 'checkm2')
                 )
                 results['analysis_results']['checkm2'] = checkm2_results
                 
-            # 代谢通路预测（基于Diamond结果）
+            # Metabolic pathway prediction (based on Diamond results)
             if run_diamond:
-                self.logger.info("运行代谢通路预测...")
+                self.logger.info("Running metabolic pathway prediction...")
                 pathway_results = self.pathway_predictor.predict_comprehensive(
                     input_path=input_file,
                     output_prefix=os.path.basename(input_file).replace('.faa', ''),
@@ -121,15 +121,15 @@ class MethArCTAnalyzer:
                 )
                 results['analysis_results']['pathways'] = pathway_results
                 
-            # 保存综合结果
+            # Save comprehensive results
             results_file = os.path.join(output_dir, 'comprehensive_results.json')
             with open(results_file, 'w', encoding='utf-8') as f:
                 json.dump(results, f, indent=2, ensure_ascii=False)
                 
-            self.logger.info(f"综合分析完成，结果保存至: {results_file}")
+            self.logger.info(f"Comprehensive analysis completed, results saved to: {results_file}")
             
         except Exception as e:
-            self.logger.error(f"综合分析失败: {str(e)}")
+            self.logger.error(f"Comprehensive analysis failed: {str(e)}")
             results['error'] = str(e)
             raise
             
@@ -137,14 +137,14 @@ class MethArCTAnalyzer:
     
     def analyze_diamond(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
         """
-        仅执行Diamond分析
+        Execute Diamond analysis only
         
         Args:
-            input_file: 输入文件路径
-            output_dir: 输出目录
+            input_file: Input file path
+            output_dir: Output directory
             
         Returns:
-            Diamond分析结果
+            Diamond analysis results
         """
         if output_dir is None:
             output_dir = os.path.join(self.results_dir, 'diamond')
@@ -153,14 +153,14 @@ class MethArCTAnalyzer:
     
     def analyze_tome(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
         """
-        仅执行Tome分析
+        Execute Tome analysis only
         
         Args:
-            input_file: 输入文件路径
-            output_dir: 输出目录
+            input_file: Input file path
+            output_dir: Output directory
             
         Returns:
-            Tome分析结果
+            Tome analysis results
         """
         if output_dir is None:
             output_dir = os.path.join(self.results_dir, 'tome')
@@ -169,14 +169,14 @@ class MethArCTAnalyzer:
     
     def analyze_checkm2(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
         """
-        仅执行CheckM2分析
+        Execute CheckM2 analysis only
         
         Args:
-            input_file: 输入文件路径
-            output_dir: 输出目录
+            input_file: Input file path
+            output_dir: Output directory
             
         Returns:
-            CheckM2分析结果
+            CheckM2 analysis results
         """
         if output_dir is None:
             output_dir = os.path.join(self.results_dir, 'checkm2')
@@ -185,13 +185,13 @@ class MethArCTAnalyzer:
     
     def get_analysis_summary(self, results: Dict) -> Dict:
         """
-        生成分析结果摘要
+        Generate analysis results summary
         
         Args:
-            results: 分析结果字典
+            results: Analysis results dictionary
             
         Returns:
-            结果摘要字典
+            Results summary dictionary
         """
         summary = {
             'input_file': results.get('input_file'),
@@ -210,27 +210,27 @@ class MethArCTAnalyzer:
     
     def validate_input(self, input_file: str) -> bool:
         """
-        验证输入文件
+        Validate input file
         
         Args:
-            input_file: 输入文件路径
+            input_file: Input file path
             
         Returns:
-            验证是否通过
+            Whether validation passed
         """
         if not os.path.exists(input_file):
-            self.logger.error(f"输入文件不存在: {input_file}")
+            self.logger.error(f"Input file does not exist: {input_file}")
             return False
             
-        # 检查文件格式（简单检查）
+        # Check file format (simple check)
         try:
             with open(input_file, 'r') as f:
                 first_line = f.readline().strip()
                 if not first_line.startswith('>'):
-                    self.logger.error(f"输入文件不是有效的FASTA格式: {input_file}")
+                    self.logger.error(f"Input file is not valid FASTA format: {input_file}")
                     return False
         except Exception as e:
-            self.logger.error(f"读取输入文件失败: {str(e)}")
+            self.logger.error(f"Failed to read input file: {str(e)}")
             return False
             
         return True

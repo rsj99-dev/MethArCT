@@ -27,7 +27,7 @@ class DiamondAnalyzer:
         self.config = config or Config()
         self.logger = get_logger("diamond_analyzer")
         
-        # Tool configuration - 支持WSL
+        # Tool configuration - WSL support
         self.use_wsl = self.config.get('tools.diamond.use_wsl', False)
         
         if self.use_wsl:
@@ -40,20 +40,20 @@ class DiamondAnalyzer:
         self.max_target_seqs = self.config.get('tools.diamond.max_target_seqs', 1)
         self.identity_threshold = self.config.get('tools.diamond.identity_threshold', 30.0)
         
-        # 双阈值分析参数
+        # Dual threshold analysis parameters
         self.HIGH_E_VALUE_THRESHOLD = 1e-100
         self.HIGH_BITSCORE_THRESHOLD = 400
         self.LOW_E_VALUE_THRESHOLD = 1e-5
         self.LOW_BITSCORE_THRESHOLD = 40
         self.HIGH_QUALITY_THRESHOLD = 60
         
-        # 栽培评估阈值
+        # Cultivability assessment thresholds
         self.CULTIVABILITY_E_VALUE_THRESHOLD = 1e-3
         self.CULTIVABILITY_BITSCORE_THRESHOLD = 50
         
-        # 耐盐性评估阈值
-        self.SALT_TOLERANCE_E_VALUE_THRESHOLD = 1e-5  # 使用diamond默认阈值
-        self.SALT_TOLERANCE_BITSCORE_THRESHOLD = 100    # 使用diamond默认值（无比特分数过滤）
+        # Salt tolerance assessment thresholds
+        self.SALT_TOLERANCE_E_VALUE_THRESHOLD = 1e-5  # Use diamond default threshold
+        self.SALT_TOLERANCE_BITSCORE_THRESHOLD = 100    # Use diamond default value (no bitscore filtering)
         
         # Database paths
         self.db_base_dir = self.config.get('databases.base_dir', 'data/databases')
@@ -76,14 +76,14 @@ class DiamondAnalyzer:
     
     def _check_diamond_availability(self) -> bool:
         """
-        Check if Diamond tool is available - 支持WSL环境
+        Check if Diamond tool is available - WSL environment support
         
         Returns:
             True if Diamond is available, False otherwise
         """
         try:
             if self.use_wsl:
-                # WSL环境下的检查
+                # Check in WSL environment
                 result = subprocess.run(
                     ['wsl', 'diamond', 'version'],
                     capture_output=True,
@@ -91,7 +91,7 @@ class DiamondAnalyzer:
                     timeout=30
                 )
             else:
-                # 本地环境下的检查
+                # Check in local environment
                 result = subprocess.run(
                     [self.diamond_path, 'version'],
                     capture_output=True,
@@ -101,11 +101,11 @@ class DiamondAnalyzer:
             
             if result.returncode == 0:
                 version = result.stdout.strip()
-                env_type = "WSL" if self.use_wsl else "本地"
-                self.logger.info(f"Diamond工具可用 ({env_type}): {version}")
+                env_type = "WSL" if self.use_wsl else "Local"
+                self.logger.info(f"Diamond tool available ({env_type}): {version}")
                 return True
             else:
-                self.logger.error(f"Diamond工具不可用: {result.stderr}")
+                self.logger.error(f"Diamond tool not available: {result.stderr}")
                 return False
                 
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
@@ -257,7 +257,7 @@ class DiamondAnalyzer:
             f"{os.path.basename(output_prefix)}_{db_name}_diamond.tsv"
         )
         
-        # 根据数据库类型选择E值阈值
+        # Select E-value threshold based on database type
         if db_name == 'CULTIVATION':
             search_evalue = self.CULTIVABILITY_E_VALUE_THRESHOLD
         elif db_name == 'NAIYAN':
@@ -300,9 +300,9 @@ class DiamondAnalyzer:
                                'sstart', 'send', 'evalue', 'bitscore']
                     )
                     
-                    # 根据数据库类型返回不同的结果结构
+                    # Return different result structures based on database type
                     if db_name == 'CULTIVATION':
-                        # 栽培评估数据库只进行栽培评估过滤
+                        # Cultivability database only performs cultivability filtering
                         cultivability_hits = df[
                             (df['evalue'] <= self.CULTIVABILITY_E_VALUE_THRESHOLD) & 
                             (df['bitscore'] >= self.CULTIVABILITY_BITSCORE_THRESHOLD)
@@ -316,7 +316,7 @@ class DiamondAnalyzer:
                         }
                     
                     elif db_name == 'NAIYAN':
-                        # 耐盐性数据库只进行耐盐性评估过滤
+                        # Salt tolerance database only performs salt tolerance filtering
                         salt_tolerance_hits = df[
                             (df['evalue'] <= self.SALT_TOLERANCE_E_VALUE_THRESHOLD) & 
                             (df['bitscore'] >= self.SALT_TOLERANCE_BITSCORE_THRESHOLD)
@@ -330,14 +330,14 @@ class DiamondAnalyzer:
                         }
                     
                     else:
-                        # 代谢途径数据库进行双阈值过滤
-                        # 检查是否为甲烷代谢途径，如果是则使用单阈值分析
+                        # Metabolic pathway database performs dual threshold filtering
+                        # Check if it's a methane metabolism pathway, if so use single threshold analysis
                         if db_name in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
                                      'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
                                      'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                                     '甘氨酸甜菜碱产甲烷', '硫代丙酸甲酯产甲烷', '四甲基铵产甲烷',
-                                     '甲醇歧化产甲烷']:
-                            # 甲烷代谢途径：单阈值分析（只保留低阈值）
+                                     'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis',
+                                     'Methanol dismutation methanogenesis']:
+                            # Methane metabolism pathway: single threshold analysis (only keep low threshold)
                             low_threshold_hits = df[
                                 (df['evalue'] <= self.LOW_E_VALUE_THRESHOLD) & 
                                 (df['bitscore'] >= self.LOW_BITSCORE_THRESHOLD)
@@ -350,7 +350,7 @@ class DiamondAnalyzer:
                                 'output_file': output_file
                             }
                         else:
-                            # 其他代谢途径（硫、氮）保持双阈值分析
+                            # Other metabolic pathways (sulfur, nitrogen) maintain dual threshold analysis
                             high_threshold_hits = df[
                                 (df['evalue'] <= self.HIGH_E_VALUE_THRESHOLD) & 
                                 (df['bitscore'] >= self.HIGH_BITSCORE_THRESHOLD)
@@ -371,7 +371,7 @@ class DiamondAnalyzer:
                         
                 else:
                     self.logger.info(f"No hits found for database: {db_name}")
-                    # 根据数据库类型返回相应的空DataFrame结构
+                    # Return corresponding empty DataFrame structure based on database type
                     if db_name == 'CULTIVATION':
                         return {
                             'database': db_name,
@@ -434,10 +434,10 @@ class DiamondAnalyzer:
                 reference_count = self.reference_counts.get(db_name, 1)
                 
                 if db_name == 'CULTIVATION':
-                    # 栽培评估数据库处理
-                    # 计算有多少个不同的查询序列匹配到了栽培相关基因（去重）
+                    # Cultivability database processing
+                    # Calculate how many different query sequences matched cultivability-related genes (deduplicated)
                     cultivability_matched = len(result['cultivability_hits']['qseqid'].drop_duplicates())
-                    # 修改计算逻辑：匹配项/自身的基因数乘以100%
+                    # Modified calculation logic: matches / total genes * 100%
                     cultivability_percentage = (cultivability_matched / total_sequences) * 100
                     
                     if cultivability_percentage <= 11:
@@ -460,8 +460,8 @@ class DiamondAnalyzer:
                     }
                     
                 elif db_name == 'NAIYAN':
-                    # 耐盐性数据库处理
-                    # 计算有多少个不同的查询序列匹配到了耐盐性相关基因（去重）
+                    # Salt tolerance database processing
+                    # Calculate how many different query sequences matched salt tolerance-related genes (deduplicated)
                     salt_tolerance_matched = len(result['salt_tolerance_hits']['qseqid'].drop_duplicates())
                     
                     if 0 <= salt_tolerance_matched <= 2:
@@ -487,30 +487,30 @@ class DiamondAnalyzer:
                     }
                     
                 else:
-                    # 代谢途径数据库处理（双阈值分析）
-                    # 检查是否为甲烷代谢途径，如果是则使用单阈值分析
+                    # Metabolic pathway database processing (dual threshold analysis)
+                    # Check if it's a methane metabolism pathway, if so use single threshold analysis
                     if db_name in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
                                  'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
                                  'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                                 '甘氨酸甜菜碱产甲烷', '硫代丙酸甲酯产甲烷', '四甲基铵产甲烷',
-                                 '甲醇歧化产甲烷']:
-                        # 甲烷代谢途径：单阈值分析（只保留低阈值）
-                        # 注意：同源基因（如FwdF/FwdG/FwdH、Hmd/Mtd）虽然序列相似，但代表不同基因功能，应该分别统计
+                                 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis',
+                                 'Methanol dismutation methanogenesis']:
+                        # Methane metabolism pathway: single threshold analysis (only keep low threshold)
+                        # Note: Homologous genes (e.g., FwdF/FwdG/FwdH, Hmd/Mtd) have similar sequences but represent different gene functions and should be counted separately
                         low_threshold_matched = len(result['low_threshold_hits'].drop_duplicates(subset=['sseqid']))
                         
-                        # 对于甲酸产甲烷途径，添加特殊化处理
+                        # For formate methanogenesis pathway, add special handling
                         if db_name == 'JIASUAN-CH4':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== JIASUAN-CH4 通路评判逻辑开始执行 ===")
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== JIASUAN-CH4 pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况
+                            # Check key gene matching
                             fwd_fgh_present = any(gene in unique_hits for gene in ['FwdF', 'FwdG', 'FwdH'])
                             hmd_mtd_present = any(gene in unique_hits for gene in ['Hmd', 'Mtd'])
                             
-                            # 检查FdhA和FdhB基因的高严格比对条件
+                            # Check high-strict matching conditions for FdhA and FdhB genes
                             fdhA_hits = result['low_threshold_hits'][
                                 (result['low_threshold_hits'].iloc[:, 1] == 'FdhA') &
                                 (result['low_threshold_hits']['bitscore'] > 380) &
@@ -524,103 +524,103 @@ class DiamondAnalyzer:
                             fdhA_present = len(fdhA_hits) > 0
                             fdhB_present = len(fdhB_hits) > 0
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"JIASUAN-CH4 关键基因检测状态:")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"JIASUAN-CH4 key gene detection status:")
                             self.logger.debug(f"  FwdF/FwdG/FwdH: {fwd_fgh_present}")
                             self.logger.debug(f"  Hmd/Mtd: {hmd_mtd_present}")
-                            self.logger.debug(f"  FdhA: {fdhA_present} (命中数: {len(fdhA_hits)})")
-                            self.logger.debug(f"  FdhB: {fdhB_present} (命中数: {len(fdhB_hits)})")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            self.logger.debug(f"  FdhA: {fdhA_present} (hits: {len(fdhA_hits)})")
+                            self.logger.debug(f"  FdhB: {fdhB_present} (hits: {len(fdhB_hits)})")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 优化评判逻辑：采用加权评分法
-                            # 基础基因覆盖（权重40%）：检测到的基因数量
+                            # Optimized evaluation logic: use weighted scoring method
+                            # Base gene coverage (weight 40%): number of detected genes
                             base_score = min(len(unique_hits) / reference_count * 40, 40)
                             
-                            # 关键功能基因（权重60%）：
-                            # - FwdF/FwdG/FwdH（权重15%）
-                            # - Hmd/Mtd（权重15%）
-                            # - FdhA（权重15%）
-                            # - FdhB（权重15%）
+                            # Key functional genes (weight 60%):
+                            # - FwdF/FwdG/FwdH (weight 15%)
+                            # - Hmd/Mtd (weight 15%)
+                            # - FdhA (weight 15%)
+                            # - FdhB (weight 15%)
                             fwd_fgh_score = 15 if fwd_fgh_present else 0
                             hmd_mtd_score = 15 if hmd_mtd_present else 0
                             fdhA_score = 15 if fdhA_present else 0
                             fdhB_score = 15 if fdhB_present else 0
                             
-                            # 计算总得分
+                            # Calculate total score
                             total_score = base_score + fwd_fgh_score + hmd_mtd_score + fdhA_score + fdhB_score
                             
-                            # 根据得分确定匹配基因数
-                            # 如果所有关键功能基因都满足，直接认定为100%完整度
+                            # Determine matched gene count based on score
+                            # If all key functional genes are satisfied, directly mark as 100% completeness
                             if fwd_fgh_present and hmd_mtd_present and fdhA_present and fdhB_present:
-                                self.logger.debug(f"JIASUAN-CH4: 所有关键功能基因满足，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"JIASUAN-CH4: All key functional genes satisfied, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
-                            elif total_score >= 80:  # 80分以上认为途径完整
-                                self.logger.debug(f"JIASUAN-CH4: 总得分{total_score}≥80，使用参考序列数: {reference_count}")
+                            elif total_score >= 80:  # Score >= 80 considered pathway complete
+                                self.logger.debug(f"JIASUAN-CH4: Total score {total_score} >= 80, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
-                            elif total_score >= 60:  # 60-79分使用实际检测数
-                                self.logger.debug(f"JIASUAN-CH4: 总得分{total_score}在60-79之间，使用实际检测数: {len(unique_hits)}")
+                            elif total_score >= 60:  # 60-79 use actual detection count
+                                self.logger.debug(f"JIASUAN-CH4: Total score {total_score} between 60-79, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
-                            else:  # 60分以下使用实际检测数
-                                self.logger.debug(f"JIASUAN-CH4: 总得分{total_score}<60，使用实际检测数: {len(unique_hits)}")
+                            else:  # Below 60 use actual detection count
+                                self.logger.debug(f"JIASUAN-CH4: Total score {total_score} < 60, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
                         
-                        # 对于CO2还原产甲烷途径，添加特殊化处理
+                        # For CO2 reduction methanogenesis pathway, add special handling
                         elif db_name == 'CO2-CH4':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== CO2-CH4 通路评判逻辑开始执行 ===")
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== CO2-CH4 pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况
-                            # CO2-CH4通路的关键基因是FwdF/FwdG/FwdH和Hmd/Mtd，不需要FdhA/FdhB
+                            # Check key gene matching
+                            # CO2-CH4 pathway key genes are FwdF/FwdG/FwdH and Hmd/Mtd, no need for FdhA/FdhB
                             fwd_fgh_present = any(gene in unique_hits for gene in ['FwdF', 'FwdG', 'FwdH'])
                             hmd_mtd_present = any(gene in unique_hits for gene in ['Hmd', 'Mtd'])
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"CO2-CH4 关键基因检测状态:")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"CO2-CH4 key gene detection status:")
                             self.logger.debug(f"  FwdF/FwdG/FwdH: {fwd_fgh_present}")
                             self.logger.debug(f"  Hmd/Mtd: {hmd_mtd_present}")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 优化评判逻辑：采用加权评分法
-                            # 基础基因覆盖（权重60%）：检测到的基因数量
+                            # Optimized evaluation logic: use weighted scoring method
+                            # Base gene coverage (weight 60%): number of detected genes
                             base_score = min(len(unique_hits) / reference_count * 60, 60)
                             
-                            # 关键功能基因（权重40%）：
-                            # - FwdF/FwdG/FwdH（权重20%）
-                            # - Hmd/Mtd（权重20%）
+                            # Key functional genes (weight 40%):
+                            # - FwdF/FwdG/FwdH (weight 20%)
+                            # - Hmd/Mtd (weight 20%)
                             fwd_fgh_score = 20 if fwd_fgh_present else 0
                             hmd_mtd_score = 20 if hmd_mtd_present else 0
                             
-                            # 计算总得分
+                            # Calculate total score
                             total_score = base_score + fwd_fgh_score + hmd_mtd_score
                             
-                            # 根据得分确定匹配基因数
-                            # 如果所有关键功能基因都满足，直接认定为100%完整度
+                            # Determine matched gene count based on score
+                            # If all key functional genes are satisfied, directly mark as 100% completeness
                             if fwd_fgh_present and hmd_mtd_present:
-                                self.logger.debug(f"CO2-CH4: 所有关键功能基因满足，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"CO2-CH4: All key functional genes satisfied, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
-                            elif total_score >= 80:  # 80分以上认为途径完整
-                                self.logger.debug(f"CO2-CH4: 总得分{total_score}≥80，使用参考序列数: {reference_count}")
+                            elif total_score >= 80:  # Score >= 80 considered pathway complete
+                                self.logger.debug(f"CO2-CH4: Total score {total_score} >= 80, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
-                            elif total_score >= 60:  # 60-79分使用实际检测数
-                                self.logger.debug(f"CO2-CH4: 总得分{total_score}在60-79之间，使用实际检测数: {len(unique_hits)}")
+                            elif total_score >= 60:  # 60-79 use actual detection count
+                                self.logger.debug(f"CO2-CH4: Total score {total_score} between 60-79, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
-                            else:  # 60分以下使用实际检测数
-                                self.logger.debug(f"CO2-CH4: 总得分{total_score}<60，使用实际检测数: {len(unique_hits)}")
+                            else:  # Below 60 use actual detection count
+                                self.logger.debug(f"CO2-CH4: Total score {total_score} < 60, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
                         
-                        # 对于甲硫醇产甲烷途径，添加特殊化处理
+                        # For methanethiol methanogenesis pathway, add special handling
                         elif db_name == 'JIALIUCHUN-CH4':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== JIALIUCHUN-CH4 通路评判逻辑开始执行 ===")
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== JIALIUCHUN-CH4 pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况
-                            # 甲硫醇特异性基因：MtsA1, MtsA2（添加严格的比对条件：bitscore > 200 且 evalue <= 1e-100）
+                            # Check key gene matching
+                            # Methanethiol-specific genes: MtsA1, MtsA2 (add strict matching conditions: bitscore > 200 and evalue <= 1e-100)
                             mtsA1_hits = result['low_threshold_hits'][
                                 (result['low_threshold_hits'].iloc[:, 1] == 'MtsA1') &
                                 (result['low_threshold_hits']['bitscore'] > 200) &
@@ -634,90 +634,90 @@ class DiamondAnalyzer:
                             mtsA1_present = len(mtsA1_hits) > 0
                             mtsA2_present = len(mtsA2_hits) > 0
                             
-                            # 甲基辅酶M还原酶相关基因：KYC55281.1, KYC55283.1, KYC55284.1, KYC55314.1
+                            # Methyl-coenzyme M reductase related genes: KYC55281.1, KYC55283.1, KYC55284.1, KYC55314.1
                             mcr_genes = ['KYC55281.1', 'KYC55283.1', 'KYC55284.1', 'KYC55314.1']
                             mcr_genes_present = [gene in unique_hits for gene in mcr_genes]
                             mcr_genes_count = sum(mcr_genes_present)
                             
-                            # 检查甲基辅酶M还原酶相关基因中任意3个是否比对到
+                            # Check if any 3 of the methyl-coenzyme M reductase related genes are matched
                             mcr_3_present = mcr_genes_count >= 3
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"JIALIUCHUN-CH4 关键基因检测状态:")
-                            self.logger.debug(f"  MtsA1: {mtsA1_present} (命中数: {len(mtsA1_hits)})")
-                            self.logger.debug(f"  MtsA2: {mtsA2_present} (命中数: {len(mtsA2_hits)})")
-                            self.logger.debug(f"  甲基辅酶M还原酶基因比对情况: {mcr_genes_count}/4")
-                            self.logger.debug(f"  甲基辅酶M还原酶基因任意3个比对到: {mcr_3_present}")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"JIALIUCHUN-CH4 key gene detection status:")
+                            self.logger.debug(f"  MtsA1: {mtsA1_present} (hits: {len(mtsA1_hits)})")
+                            self.logger.debug(f"  MtsA2: {mtsA2_present} (hits: {len(mtsA2_hits)})")
+                            self.logger.debug(f"  Methyl-coenzyme M reductase gene matching: {mcr_genes_count}/4")
+                            self.logger.debug(f"  Any 3 methyl-coenzyme M reductase genes matched: {mcr_3_present}")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 输出详细的MtsA1和MtsA2比对分数信息用于调试
+                            # Output detailed MtsA1 and MtsA2 bitscore info for debugging
                             if len(mtsA1_hits) > 0:
-                                self.logger.debug(f"  MtsA1最高bitscore: {mtsA1_hits['bitscore'].max()}")
+                                self.logger.debug(f"  MtsA1 max bitscore: {mtsA1_hits['bitscore'].max()}")
                             if len(mtsA2_hits) > 0:
-                                self.logger.debug(f"  MtsA2最高bitscore: {mtsA2_hits['bitscore'].max()}")
+                                self.logger.debug(f"  MtsA2 max bitscore: {mtsA2_hits['bitscore'].max()}")
                             
-                            # 根据新策略确定匹配基因数
-                            # 如果MtsA1和MtsA2都比对到，且甲基辅酶M还原酶相关基因中任意3个比对到，则认定为100%完整度
+                            # Determine matched gene count based on new strategy
+                            # If both MtsA1 and MtsA2 are matched, and any 3 of methyl-coenzyme M reductase related genes are matched, mark as 100% completeness
                             if mtsA1_present and mtsA2_present and mcr_3_present:
-                                self.logger.debug(f"JIALIUCHUN-CH4: 关键基因条件满足，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"JIALIUCHUN-CH4: Key gene conditions satisfied, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
                             else:
-                                # 不满足条件时，如果MtsA1未满足严格条件，从实际检测数中排除MtsA1基因
-                                # 因为MtsA1是甲硫醇通路的关键基因，必须满足严格条件
+                                # When conditions not met, if MtsA1 doesn't meet strict conditions, exclude MtsA1 from actual detection count
+                                # Because MtsA1 is a key gene for methanethiol pathway, must meet strict conditions
                                 adjusted_hits = len(unique_hits)
                                 if not mtsA1_present:
-                                    # 如果MtsA1未满足条件，从检测数中减去1（因为MtsA1是必需基因）
+                                    # If MtsA1 doesn't meet conditions, subtract 1 from detection count (MtsA1 is essential gene)
                                     adjusted_hits = max(0, len(unique_hits) - 1)
-                                    self.logger.debug(f"JIALIUCHUN-CH4: MtsA1未满足严格条件，调整检测数: {len(unique_hits)} -> {adjusted_hits}")
+                                    self.logger.debug(f"JIALIUCHUN-CH4: MtsA1 doesn't meet strict conditions, adjusting detection count: {len(unique_hits)} -> {adjusted_hits}")
                                 else:
-                                    self.logger.debug(f"JIALIUCHUN-CH4: 关键基因条件不满足，使用实际检测数: {len(unique_hits)}")
+                                    self.logger.debug(f"JIALIUCHUN-CH4: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = adjusted_hits
                         
-                        # 对于甘氨酸甜菜碱产甲烷途径，添加特殊化处理
-                        elif db_name == '甘氨酸甜菜碱产甲烷':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== 甘氨酸甜菜碱产甲烷通路评判逻辑开始执行 ===")
+                        # For glycine betaine methanogenesis pathway, add special handling
+                        elif db_name == 'Glycine betaine methanogenesis':
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== Glycine betaine methanogenesis pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况
-                            # 甘氨酸甜菜碱产甲烷途径的关键基因：MtgB, dimethylamine_corrinoid_protein_3, MV10360
+                            # Check key gene matching
+                            # Glycine betaine methanogenesis pathway key genes: MtgB, dimethylamine_corrinoid_protein_3, MV10360
                             mtgB_present = 'MtgB' in unique_hits
                             dimethylamine_corrinoid_present = 'dimethylamine_corrinoid_protein_3' in unique_hits
                             mv10360_present = 'MV10360' in unique_hits
                             
-                            # 检查所有关键基因是否都比对到
+                            # Check if all key genes are matched
                             all_key_genes_present = mtgB_present and dimethylamine_corrinoid_present and mv10360_present
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"甘氨酸甜菜碱产甲烷 关键基因检测状态:")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"Glycine betaine methanogenesis key gene detection status:")
                             self.logger.debug(f"  MtgB: {mtgB_present}")
                             self.logger.debug(f"  dimethylamine_corrinoid_protein_3: {dimethylamine_corrinoid_present}")
                             self.logger.debug(f"  MV10360: {mv10360_present}")
-                            self.logger.debug(f"  所有关键基因比对到: {all_key_genes_present}")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            self.logger.debug(f"  All key genes matched: {all_key_genes_present}")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 根据新策略确定匹配基因数
-                            # 如果所有3个关键基因都比对到，则认定为100%完整度
+                            # Determine matched gene count based on new strategy
+                            # If all 3 key genes are matched, mark as 100% completeness
                             if all_key_genes_present:
-                                self.logger.debug(f"甘氨酸甜菜碱产甲烷: 所有关键基因条件满足，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"Glycine betaine methanogenesis: All key gene conditions satisfied, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
                             else:
-                                # 不满足条件时使用实际检测数
-                                self.logger.debug(f"甘氨酸甜菜碱产甲烷: 关键基因条件不满足，使用实际检测数: {len(unique_hits)}")
+                                # When conditions not met, use actual detection count
+                                self.logger.debug(f"Glycine betaine methanogenesis: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
                         
-                        # 对于硫代丙酸甲酯产甲烷途径，添加特殊化处理
-                        elif db_name == '硫代丙酸甲酯产甲烷':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== 硫代丙酸甲酯产甲烷通路评判逻辑开始执行 ===")
+                        # For methylthiopropionate methanogenesis pathway, add special handling
+                        elif db_name == 'Methylthiopropionate methanogenesis':
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== Methylthiopropionate methanogenesis pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况，要求比对分数大于100且E值小于1e-5
-                            # 硫代丙酸甲酯产甲烷途径的关键基因：mtpA1, mtsA1, mtpA2, mtsA2
+                            # Check key gene matching, require bitscore > 100 and evalue <= 1e-5
+                            # Methylthiopropionate methanogenesis pathway key genes: mtpA1, mtsA1, mtpA2, mtsA2
                             mtpA1_hits = result['low_threshold_hits'][
                                 (result['low_threshold_hits'].iloc[:, 1] == 'mtpA1') &
                                 (result['low_threshold_hits']['bitscore'] > 100) &
@@ -744,38 +744,38 @@ class DiamondAnalyzer:
                             mtpA2_present = len(mtpA2_hits) > 0
                             mtsA2_present = len(mtsA2_hits) > 0
                             
-                            # 检查所有关键基因是否都比对到
+                            # Check if all key genes are matched
                             all_key_genes_present = mtpA1_present and mtsA1_present and mtpA2_present and mtsA2_present
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"硫代丙酸甲酯产甲烷 关键基因检测状态:")
-                            self.logger.debug(f"  mtpA1: {mtpA1_present} (命中数: {len(mtpA1_hits)})")
-                            self.logger.debug(f"  mtsA1: {mtsA1_present} (命中数: {len(mtsA1_hits)})")
-                            self.logger.debug(f"  mtpA2: {mtpA2_present} (命中数: {len(mtpA2_hits)})")
-                            self.logger.debug(f"  mtsA2: {mtsA2_present} (命中数: {len(mtsA2_hits)})")
-                            self.logger.debug(f"  所有关键基因比对到: {all_key_genes_present}")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"Methylthiopropionate methanogenesis key gene detection status:")
+                            self.logger.debug(f"  mtpA1: {mtpA1_present} (hits: {len(mtpA1_hits)})")
+                            self.logger.debug(f"  mtsA1: {mtsA1_present} (hits: {len(mtsA1_hits)})")
+                            self.logger.debug(f"  mtpA2: {mtpA2_present} (hits: {len(mtpA2_hits)})")
+                            self.logger.debug(f"  mtsA2: {mtsA2_present} (hits: {len(mtsA2_hits)})")
+                            self.logger.debug(f"  All key genes matched: {all_key_genes_present}")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 根据新策略确定匹配基因数
-                            # 如果所有4个关键基因都比对到（比对分数>100且E值<1e-5），则认定为100%完整度
+                            # Determine matched gene count based on new strategy
+                            # If all 4 key genes are matched (bitscore>100 and evalue<1e-5), mark as 100% completeness
                             if all_key_genes_present:
-                                self.logger.debug(f"硫代丙酸甲酯产甲烷: 所有关键基因条件满足，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"Methylthiopropionate methanogenesis: All key gene conditions satisfied, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
                             else:
-                                # 不满足条件时使用实际检测数
-                                self.logger.debug(f"硫代丙酸甲酯产甲烷: 关键基因条件不满足，使用实际检测数: {len(unique_hits)}")
+                                # When conditions not met, use actual detection count
+                                self.logger.debug(f"Methylthiopropionate methanogenesis: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
                         
-                        # 对于四甲基铵产甲烷途径，添加特殊化处理
-                        elif db_name == '四甲基铵产甲烷':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== 四甲基铵产甲烷通路评判逻辑开始执行 ===")
+                        # For tetramethylammonium methanogenesis pathway, add special handling
+                        elif db_name == 'Tetramethylammonium methanogenesis':
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== Tetramethylammonium methanogenesis pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况，要求比对分数大于200且E值小于1e-100
-                            # 四甲基铵产甲烷途径的关键基因：MtqA/MT2, MtqB, MtqC
+                            # Check key gene matching, require bitscore > 200 and evalue <= 1e-100
+                            # Key genes for Tetramethylammonium methanogenesis pathway: MtqA/MT2, MtqB, MtqC
                             mtqA_hits = result['low_threshold_hits'][
                                 (result['low_threshold_hits'].iloc[:, 1] == 'MtqA/MT2') &
                                 (result['low_threshold_hits']['bitscore'] > 200) &
@@ -796,79 +796,79 @@ class DiamondAnalyzer:
                             mtqB_present = len(mtqB_hits) > 0
                             mtqC_present = len(mtqC_hits) > 0
                             
-                            # 检查所有关键基因是否都比对到
+                            # Check if all key genes are matched
                             all_key_genes_present = mtqA_present and mtqB_present and mtqC_present
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"四甲基铵产甲烷 关键基因检测状态:")
-                            self.logger.debug(f"  MtqA/MT2: {mtqA_present} (命中数: {len(mtqA_hits)})")
-                            self.logger.debug(f"  MtqB: {mtqB_present} (命中数: {len(mtqB_hits)})")
-                            self.logger.debug(f"  MtqC: {mtqC_present} (命中数: {len(mtqC_hits)})")
-                            self.logger.debug(f"  所有关键基因比对到: {all_key_genes_present}")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"Tetramethylammonium methanogenesis key gene detection status:")
+                            self.logger.debug(f"  MtqA/MT2: {mtqA_present} (hits: {len(mtqA_hits)})")
+                            self.logger.debug(f"  MtqB: {mtqB_present} (hits: {len(mtqB_hits)})")
+                            self.logger.debug(f"  MtqC: {mtqC_present} (hits: {len(mtqC_hits)})")
+                            self.logger.debug(f"  All key genes matched: {all_key_genes_present}")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 根据新策略确定匹配基因数
-                            # 如果所有3个关键基因都比对到（比对分数>200且E值<1e-100），则认定为100%完整度
+                            # Determine matched gene count based on new strategy
+                            # If all 3 key genes are matched (bitscore>200 and evalue<1e-100), mark as 100% completeness
                             if all_key_genes_present:
-                                self.logger.debug(f"四甲基铵产甲烷: 所有关键基因条件满足，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"Tetramethylammonium methanogenesis: All key gene conditions satisfied, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
                             else:
-                                # 不满足条件时使用实际检测数
-                                self.logger.debug(f"四甲基铵产甲烷: 关键基因条件不满足，使用实际检测数: {len(unique_hits)}")
+                                # When conditions not met, use actual detection count
+                                self.logger.debug(f"Tetramethylammonium methanogenesis: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
                         
-                        # 对于甲醇歧化产甲烷途径，添加特殊化处理
-                        elif db_name == '甲醇歧化产甲烷':
-                            # 调试信息：确认代码被执行
-                            self.logger.debug("=== 甲醇歧化产甲烷通路评判逻辑开始执行 ===")
+                        # For methanol dismutation methanogenesis pathway, add special handling
+                        elif db_name == 'Methanol dismutation methanogenesis':
+                            # Debug info: confirm code is being executed
+                            self.logger.debug("=== Methanol dismutation methanogenesis pathway evaluation logic executing ===")
                             
-                            # 获取所有比对到的唯一基因名称（第二列）
+                            # Get all unique matched gene names (second column)
                             unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
                             
-                            # 检查关键基因的比对情况
-                            # 甲醇歧化产甲烷途径的关键基因：MvhA和elpA（两个基因中有一个比对到即可）
+                            # Check key gene matching
+                            # Key genes for Methanol dismutation methanogenesis pathway: MvhA and elpA (one of the two genes matched is sufficient)
                             mvhA_present = 'MvhA' in unique_hits
                             elpA_present = 'elpA' in unique_hits
                             
-                            # 检查其他基因的比对情况（除了MvhA和elpA之外的所有基因）
-                            # 甲醇歧化产甲烷途径的其他关键基因：FwdA-FwdH, Ftr, Mch, Hmd, Mtd, elpB, elpC等
+                            # Check other gene matching (all genes except MvhA and elpA)
+                            # Other key genes for Methanol dismutation methanogenesis pathway: FwdA-FwdH, Ftr, Mch, Hmd, Mtd, elpB, elpC, etc.
                             other_genes = ['FwdA', 'FwdB', 'FwdC', 'FwdD', 'FwdE', 'FwdF', 'FwdG', 'FwdH', 
                                          'Ftr', 'Mch', 'Hmd', 'Mtd', 'elpB', 'elpC']
                             other_genes_present = [gene in unique_hits for gene in other_genes]
                             other_genes_count = sum(other_genes_present)
                             
-                            # 检查其他基因是否全部比对到（除了MvhA和elpA）
+                            # Check if all other genes are matched (except MvhA and elpA)
                             all_other_genes_present = other_genes_count == len(other_genes)
                             
-                            # 调试信息：输出关键基因检测状态
-                            self.logger.debug(f"甲醇歧化产甲烷 关键基因检测状态:")
+                            # Debug info: output key gene detection status
+                            self.logger.debug(f"Methanol dismutation methanogenesis key gene detection status:")
                             self.logger.debug(f"  MvhA: {mvhA_present}")
                             self.logger.debug(f"  elpA: {elpA_present}")
-                            self.logger.debug(f"  MvhA或elpA比对到: {mvhA_present or elpA_present}")
-                            self.logger.debug(f"  其他基因比对情况: {other_genes_count}/{len(other_genes)}")
-                            self.logger.debug(f"  所有其他基因比对到: {all_other_genes_present}")
-                            self.logger.debug(f"  基础基因覆盖: {len(unique_hits)}/{reference_count}")
+                            self.logger.debug(f"  MvhA or elpA matched: {mvhA_present or elpA_present}")
+                            self.logger.debug(f"  Other genes matching: {other_genes_count}/{len(other_genes)}")
+                            self.logger.debug(f"  All other genes matched: {all_other_genes_present}")
+                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
                             
-                            # 根据新策略确定匹配基因数
-                            # 如果其他基因全部比对到，且MvhA和elpA中有一个比对到，则认定为100%完整度
+                            # Determine matched gene count based on new strategy
+                            # If all other genes are matched, and one of MvhA/elpA is matched, mark as 100% completeness
                             if all_other_genes_present and (mvhA_present or elpA_present):
-                                self.logger.debug(f"甲醇歧化产甲烷: 其他基因全部比对到且MvhA/elpA中有一个比对到，使用参考序列数: {reference_count}")
+                                self.logger.debug(f"Methanol dismutation methanogenesis: All other genes matched and one of MvhA/elpA matched, using reference sequence count: {reference_count}")
                                 low_threshold_matched = reference_count
                             else:
-                                # 不满足条件时使用实际检测数
-                                self.logger.debug(f"甲醇歧化产甲烷: 条件不满足，使用实际检测数: {len(unique_hits)}")
+                                # When conditions not met, use actual detection count
+                                self.logger.debug(f"Methanol dismutation methanogenesis: Conditions not met, using actual detection count: {len(unique_hits)}")
                                 low_threshold_matched = len(unique_hits)
                             
-                            # 确保完整度不超过100%
+                            # Ensure completeness does not exceed 100%
                             if low_threshold_matched > reference_count:
-                                self.logger.debug(f"甲醇歧化产甲烷: 检测基因数({low_threshold_matched})超过参考序列数({reference_count})，限制为100%")
+                                self.logger.debug(f"Methanol dismutation methanogenesis: Detected gene count ({low_threshold_matched}) exceeds reference sequence count ({reference_count}), limited to 100%")
                                 low_threshold_matched = reference_count
                         
                         low_completeness = (low_threshold_matched / reference_count) * 100
                         
-                        # 确保完整度百分比不超过100%
+                        # Ensure completeness percentage does not exceed 100%
                         if low_completeness > 100:
-                            self.logger.debug(f"完整度百分比超过100%，限制为100%")
+                            self.logger.debug(f"Completeness percentage exceeds 100%, limited to 100%")
                             low_completeness = 100
                         
                         pathway_results[db_name] = {
@@ -882,30 +882,30 @@ class DiamondAnalyzer:
                             'best_hits_low': result['low_threshold_hits'].nlargest(5, 'bitscore').to_dict('records')
                         }
                     else:
-                        # 其他代谢途径（硫、氮）保持双阈值分析
+                        # Other metabolic pathways (sulfur, nitrogen) maintain dual threshold analysis
                         high_threshold_matched = len(result['high_threshold_hits'].drop_duplicates(subset=['sseqid']))
                         low_threshold_matched = len(result['low_threshold_hits'].drop_duplicates(subset=['sseqid']))
                         
-                        # 确保检测基因数不超过参考序列数
+                        # Ensure detected gene count does not exceed reference sequence count
                         if high_threshold_matched > reference_count:
-                            self.logger.debug(f"{db_name}: 高阈值检测基因数({high_threshold_matched})超过参考序列数({reference_count})，限制为100%")
+                            self.logger.debug(f"{db_name}: High threshold detected gene count ({high_threshold_matched}) exceeds reference sequence count ({reference_count}), limited to 100%")
                             high_threshold_matched = reference_count
                         if low_threshold_matched > reference_count:
-                            self.logger.debug(f"{db_name}: 低阈值检测基因数({low_threshold_matched})超过参考序列数({reference_count})，限制为100%")
+                            self.logger.debug(f"{db_name}: Low threshold detected gene count ({low_threshold_matched}) exceeds reference sequence count ({reference_count}), limited to 100%")
                             low_threshold_matched = reference_count
                         
                         high_completeness = (high_threshold_matched / reference_count) * 100
                         low_completeness = (low_threshold_matched / reference_count) * 100
                         
-                        # 确保完整度百分比不超过100%
+                        # Ensure completeness percentage does not exceed 100%
                         if high_completeness > 100:
-                            self.logger.debug(f"{db_name}: 高阈值完整度超过100%，限制为100%")
+                            self.logger.debug(f"{db_name}: High threshold completeness exceeds 100%, limited to 100%")
                             high_completeness = 100
                         if low_completeness > 100:
-                            self.logger.debug(f"{db_name}: 低阈值完整度超过100%，限制为100%")
+                            self.logger.debug(f"{db_name}: Low threshold completeness exceeds 100%, limited to 100%")
                             low_completeness = 100
                         
-                        # 代谢途径完整度格式："高阈值%~低阈值%"
+                        # Metabolic pathway completeness format: "high_threshold%~low_threshold%"
                         metabolic_pathway_completeness = f"{high_completeness:.2f}%~{low_completeness:.2f}%"
                         
                         pathway_results[db_name] = {
@@ -950,45 +950,45 @@ class DiamondAnalyzer:
             results: Analysis results
             output_prefix: Output file prefix
         """
-        # 创建可序列化的结果副本，将DataFrame转换为字典列表
+        # Create serializable result copy, convert DataFrame to list of dictionaries
         serializable_results = results.copy()
         
-        # 处理pathway_results中的DataFrame对象
+        # Process DataFrame objects in pathway_results
         for db_name, pathway_data in serializable_results['pathway_results'].items():
-            # 将best_hits中的DataFrame转换为字典列表
+            # Convert DataFrame in best_hits to list of dictionaries
             if 'best_hits_high' in pathway_data and hasattr(pathway_data['best_hits_high'], 'to_dict'):
                 pathway_data['best_hits_high'] = pathway_data['best_hits_high'].to_dict('records')
             if 'best_hits_low' in pathway_data and hasattr(pathway_data['best_hits_low'], 'to_dict'):
                 pathway_data['best_hits_low'] = pathway_data['best_hits_low'].to_dict('records')
         
-        # 处理raw_results中的DataFrame对象
+        # Process DataFrame objects in raw_results
         if 'raw_results' in serializable_results:
             for db_name, raw_data in serializable_results['raw_results'].items():
                 if raw_data:
-                    # 将DataFrame转换为字典列表
+                    # Convert DataFrame to list of dictionaries
                     for key in ['high_threshold_hits', 'low_threshold_hits', 'cultivability_hits', 'salt_tolerance_hits']:
                         if key in raw_data and hasattr(raw_data[key], 'to_dict'):
                             raw_data[key] = raw_data[key].to_dict('records')
         
-        # 只保存一个汇总CSV文件，删除重复的JSON和CSV文件输出
+        # Save only one summary CSV file, remove duplicate JSON and CSV file output
         output_dir = os.path.dirname(output_prefix) if os.path.dirname(output_prefix) else self.results_dir
         summary_csv_file = os.path.join(output_dir, f"{os.path.basename(output_prefix)}_metabolic_summary.csv")
         
-        # 准备汇总数据
+        # Prepare summary data
         summary_data = []
         
-        # 获取输入文件信息
+        # Get input file information
         input_file = results.get('input_file', 'Unknown')
         analysis_timestamp = results.get('analysis_timestamp', '')
         
-        # 处理每个代谢途径的结果
+        # Process results for each metabolic pathway
         for db_name, pathway_data in results['pathway_results'].items():
-            # 确定代谢途径类型
+            # Determine metabolic pathway type
             pathway_type = 'Other'
             if db_name in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
                          'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
                          'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                         '甘氨酸甜菜碱产甲烷', '硫代丙酸甲酯产甲烷', '四甲基铵产甲烷', '甲醇歧化产甲烷']:
+                         'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis']:
                 pathway_type = 'Methane'
             elif db_name in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR']:
                 pathway_type = 'Sulfur'
@@ -999,9 +999,9 @@ class DiamondAnalyzer:
             elif db_name == 'NAIYAN':
                 pathway_type = 'Salt_Tolerance'
             
-            # 根据代谢途径类型提取相应的数据
+            # Extract corresponding data based on metabolic pathway type
             if pathway_type == 'Methane':
-                # 甲烷代谢途径
+                # Methane metabolism pathway
                 summary_data.append({
                     'Input_File': input_file,
                     'Analysis_Timestamp': analysis_timestamp,
@@ -1015,7 +1015,7 @@ class DiamondAnalyzer:
                     'Detection_Status': 'Detected' if pathway_data.get('low_threshold_hits', 0) > 0 else 'Not Detected'
                 })
             elif pathway_type in ['Sulfur', 'Nitrogen']:
-                # 硫和氮代谢途径
+                # Sulfur and nitrogen metabolism pathways
                 summary_data.append({
                     'Input_File': input_file,
                     'Analysis_Timestamp': analysis_timestamp,
@@ -1033,7 +1033,7 @@ class DiamondAnalyzer:
                     'Detection_Status': 'Detected' if pathway_data.get('low_threshold_hits', 0) > 0 else 'Not Detected'
                 })
             elif pathway_type == 'Cultivation':
-                # 栽培评估
+                # Cultivation assessment
                 summary_data.append({
                     'Input_File': input_file,
                     'Analysis_Timestamp': analysis_timestamp,
@@ -1048,7 +1048,7 @@ class DiamondAnalyzer:
                     'Detection_Status': 'Detected' if pathway_data.get('cultivability_hits', 0) > 0 else 'Not Detected'
                 })
             elif pathway_type == 'Salt_Tolerance':
-                # 耐盐性评估
+                # Salt tolerance assessment
                 summary_data.append({
                     'Input_File': input_file,
                     'Analysis_Timestamp': analysis_timestamp,
@@ -1089,7 +1089,7 @@ class DiamondAnalyzer:
         methane_dbs = ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
                      'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
                      'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                     '甘氨酸甜菜碱产甲烷', '硫代丙酸甲酯产甲烷', '四甲基铵产甲烷', '甲醇歧化产甲烷']
+                     'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis']
         sulfur_dbs = ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR']
         nitrogen_dbs = ['ANR', 'DEN', 'DNR', 'NIT']
         

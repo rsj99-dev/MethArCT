@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-WSL环境配置文件
-用于在Windows上通过WSL使用Linux工具（Diamond、Tome、CheckM2）
+WSL environment configuration file
+Used to use Linux tools (Diamond, Tome, CheckM2) via WSL on Windows
 """
 
 import os
@@ -9,19 +9,19 @@ import subprocess
 from .config import Config
 
 class WSLConfig(Config):
-    """WSL环境专用配置类"""
+    """Configuration class for WSL environment"""
     
     def __init__(self, config_file: str = None):
         super().__init__(config_file)
         self._setup_wsl_paths()
     
     def _setup_wsl_paths(self):
-        """设置WSL工具路径"""
-        # 检查WSL是否可用
+        """Set WSL tool paths"""
+        # Check if WSL is available
         if not self._check_wsl_available():
-            raise RuntimeError("WSL不可用，请先安装WSL")
+            raise RuntimeError("WSL not available, please install WSL first")
         
-        # 更新所有工具路径为WSL版本
+        # Update all tool paths to WSL versions
         self.config['tools']['diamond']['path'] = 'wsl diamond'
         self.config['tools']['diamond']['use_wsl'] = True
         
@@ -31,10 +31,10 @@ class WSLConfig(Config):
         self.config['tools']['checkm2']['path'] = 'wsl checkm2'
         self.config['tools']['checkm2']['use_wsl'] = True
         
-        self.logger.info("已配置所有工具使用WSL环境")
+        self.logger.info("All tools configured to use WSL environment")
     
     def _check_wsl_available(self) -> bool:
-        """检查WSL是否可用"""
+        """Check if WSL is available"""
         try:
             result = subprocess.run(
                 ['wsl', '--version'],
@@ -47,9 +47,9 @@ class WSLConfig(Config):
             return False
     
     def get_wsl_path(self, windows_path: str) -> str:
-        """将Windows路径转换为WSL路径"""
-        # 将Windows路径转换为WSL格式
-        # 例如: D:\data -> /mnt/d/data
+        """Convert Windows path to WSL path"""
+        # Convert Windows path to WSL format
+        # Example: D:\data -> /mnt/d/data
         if ':' in windows_path:
             drive, path = windows_path.split(':', 1)
             wsl_path = f"/mnt/{drive.lower()}{path.replace(chr(92), '/')}"
@@ -57,10 +57,10 @@ class WSLConfig(Config):
         return windows_path
     
     def check_wsl_tools(self) -> dict:
-        """检查WSL中工具的可用性"""
+        """Check tool availability in WSL"""
         tools_status = {}
         
-        # 检查Diamond
+        # Check Diamond
         try:
             result = subprocess.run(
                 ['wsl', 'diamond', 'version'],
@@ -80,7 +80,7 @@ class WSLConfig(Config):
                 'error': str(e)
             }
         
-        # 检查Tome
+        # Check Tome
         try:
             result = subprocess.run(
                 ['wsl', 'tome', '--version'],
@@ -100,7 +100,7 @@ class WSLConfig(Config):
                 'error': str(e)
             }
         
-        # 检查CheckM2
+        # Check CheckM2
         try:
             result = subprocess.run(
                 ['wsl', 'checkm2', '--version'],
@@ -123,7 +123,7 @@ class WSLConfig(Config):
         return tools_status
     
     def setup_wsl_environment(self):
-        """设置WSL环境变量和路径"""
-        # 这里可以添加WSL环境的特殊设置
-        # 比如设置数据库路径为WSL格式
+        """Set WSL environment variables and paths"""
+        # Can add special settings for WSL environment here
+        # For example, set database paths to WSL format
         pass

@@ -22,94 +22,272 @@ import glob
 
 class CultivationAnalyzer:
     """
-    Cultivation Analyzer - 基于代谢通路分析的微生物培养性评估
+    Cultivation Analyzer - Microbial cultivability assessment based on metabolic pathway analysis
     
-    该类使用Diamond序列比对和氨基酸代谢通路分析来评估微生物的可培养性，
-    专注于氨基酸、维生素、辅酶、核酸合成和ATP酶代谢途径分析。
+    This class uses Diamond sequence alignment and amino acid metabolic pathway analysis to assess microbial cultivability,
+    focusing on amino acid, vitamin, coenzyme, nucleotide synthesis and ATPase metabolic pathway analysis.
     """
+    
+    # Chinese to English pathway name mapping
+    PATHWAY_NAME_MAP = {
+        # Amino acid biosynthesis (path.aa)
+        '半胱氨酸生物合成-蛋氨酸': 'Cysteine biosynthesis-methionine',
+        '半胱氨酸生物合成-丝氨酸': 'Cysteine biosynthesis-serine',
+        '苯丙氨酸生物合成-chorisate': 'Phenylalanine biosynthesis-chorismate',
+        '苯丙氨酸生物合成-chorismate': 'Phenylalanine biosynthesis-chorismate',
+        '蛋氨酸生物合成-天冬氨酸': 'Methionine biosynthesis-aspartate',
+        '脯氨酸生物合成-谷氨酸': 'Proline biosynthesis-glutamate',
+        '精氨酸生物合成-谷氨酸': 'Arginine biosynthesis-glutamate',
+        '精氨酸生物合成-鸟氨酸': 'Arginine biosynthesis-ornithine',
+        '赖氨酸生物合成-琥珀酰DAP途径': 'Lysine biosynthesis-succinyl-DAP pathway',
+        '赖氨酸生物合成-氧代戊二酸': 'Lysine biosynthesis-oxoglutarate',
+        '赖氨酸生物合成-乙酰DAP途径': 'Lysine biosynthesis-acetyl-DAP pathway',
+        '赖氨酸生物合成-AAA途径': 'Lysine biosynthesis-AAA pathway',
+        '赖氨酸生物合成-DAP脱氢酶途径': 'Lysine biosynthesis-DAP dehydrogenase pathway',
+        '赖氨酸生物合成-DAP转氨酶途径': 'Lysine biosynthesis-DAP transaminase pathway',
+        '酪氨酸生物合成-胆碱': 'Tyrosine biosynthesis-choline',
+        '酪氨酸生物合成-chorismate': 'Tyrosine biosynthesis-chorismate',
+        '亮氨酸生物合成-氧代异戊酸酯': 'Leucine biosynthesis-oxoisovalerate',
+        '鸟氨酸生物合成-谷氨酸': 'Ornithine biosynthesis-glutamate',
+        '色氨酸生物合成-chorismate': 'Tryptophan biosynthesis-chorismate',
+        '丝氨酸生物合成-甘油酸': 'Serine biosynthesis-glycerate',
+        '苏氨酸生物合成-天冬氨酸': 'Threonine biosynthesis-aspartate',
+        '缬氨酸和异亮氨酸生物合成-丙酮酸': 'Valine and isoleucine biosynthesis-pyruvate',
+        '异亮氨酸生物合成-丙酮酸': 'Isoleucine biosynthesis-pyruvate',
+        '异亮氨酸生物合成-苏氨酸': 'Isoleucine biosynthesis-threonine',
+        '组氨酸生物合成-PRPP': 'Histidine biosynthesis-PRPP',
+        # Vitamin and coenzyme biosynthesis (path.vc)
+        '吡哆醛生物合成-赤藓糖': 'Pyridoxal biosynthesis-erythrose',
+        '吡哆醛生物合成-R5P': 'Pyridoxal biosynthesis-R5P',
+        '泛酸生物合成-1': 'Pantothenate biosynthesis-1',
+        '泛酸生物合成-2': 'Pantothenate biosynthesis-2',
+        '泛酸生物合成-3': 'Pantothenate biosynthesis-3',
+        '泛酸生物合成-4': 'Pantothenate biosynthesis-4',
+        '泛酸生物合成-5': 'Pantothenate biosynthesis-5',
+        '泛酸生物合成-6': 'Pantothenate biosynthesis-6',
+        '泛酸酯生物合成-精胺': 'Pantothenate biosynthesis-spermine',
+        '辅酶A生物合成-1': 'Coenzyme A biosynthesis-1',
+        '辅酶A生物合成-古菌': 'Coenzyme A biosynthesis-archaeal',
+        '辅酶F430生物合成-硅盐酸': 'Coenzyme F430 biosynthesis-sirohydrochlorin',
+        '钴胺素生物合成-需氧': 'Cobalamin biosynthesis-aerobic',
+        '钴胺素生物合成-厌氧': 'Cobalamin biosynthesis-anaerobic',
+        '钴胺素生物合成': 'Cobalamin biosynthesis',
+        '核黄素生物合成-真菌': 'Riboflavin biosynthesis-fungal',
+        '核黄素生物合成-GTP': 'Riboflavin biosynthesis-GTP',
+        '硫胺素生物合成-甘氨酸': 'Thiamine biosynthesis-glycine',
+        '硫胺素生物合成-古菌': 'Thiamine biosynthesis-archaeal',
+        '硫胺素生物合成-酪氨酸': 'Thiamine biosynthesis-tyrosine',
+        '硫胺素生物合成-植物': 'Thiamine biosynthesis-plant',
+        '硫辛酸生物合成-动物和细菌': 'Lipoic acid biosynthesis-animal and bacterial',
+        '硫辛酸生物合成-辛酰辅酶A': 'Lipoic acid biosynthesis-octanoyl-CoA',
+        '硫辛酸生物合成-真核': 'Lipoic acid biosynthesis-eukaryotic',
+        '硫辛酸生物合成-植物与原核': 'Lipoic acid biosynthesis-plant and prokaryotic',
+        '钼辅因子生物合成-GTP': 'Molybdenum cofactor biosynthesis-GTP',
+        '生物素生物合成-吡美酰ACP或辅酶A': 'Biotin biosynthesis-pimeloyl-ACP or CoA',
+        '生物素生物合成-BioI途径': 'Biotin biosynthesis-BioI pathway',
+        '生物素生物合成-BioU': 'Biotin biosynthesis-BioU',
+        '生物素生物合成-BioW通路': 'Biotin biosynthesis-BioW pathway',
+        '四氢生物蝶呤生物合成-GTP': 'Tetrahydrobiopterin biosynthesis-GTP',
+        '四氢叶酸生物合成-GTP': 'Tetrahydrofolate biosynthesis-GTP',
+        '四氢叶酸生物合成-PTPS介导': 'Tetrahydrofolate biosynthesis-PTPS mediated',
+        '四氢叶酸生物合成-ribA介导': 'Tetrahydrofolate biosynthesis-ribA mediated',
+        '苏氏四氢生物蝶呤生物合成-GTP': 'Sulfo-tetrahydrobiopterin biosynthesis-GTP',
+        'NAD生物合成-1': 'NAD biosynthesis-1',
+        'NAD生物合成-2': 'NAD biosynthesis-2',
+        'NAD生物合成-色氨酸': 'NAD biosynthesis-tryptophan',
+        # Nucleotide biosynthesis (path_hesuan)
+        '嘧啶生物合成-1': 'Pyrimidine biosynthesis-1',
+        '嘧啶生物合成-2': 'Pyrimidine biosynthesis-2',
+        '嘧啶生物合成-3': 'Pyrimidine biosynthesis-3',
+        '嘧啶生物合成-4': 'Pyrimidine biosynthesis-4',
+        '嘧啶生物合成-5': 'Pyrimidine biosynthesis-5',
+        '嘌呤生物合成-1': 'Purine biosynthesis-1',
+        '嘌呤生物合成-2': 'Purine biosynthesis-2',
+        '嘌呤生物合成-3': 'Purine biosynthesis-3',
+        '嘌呤生物合成-4': 'Purine biosynthesis-4',
+        '嘌呤生物合成-5': 'Purine biosynthesis-5',
+        # ATPase (path_atp)
+        'ATP酶-F1': 'ATP synthase-F1',
+        'ATP酶-F2': 'ATP synthase-F2',
+        'ATP酶-F3': 'ATP synthase-F3',
+        'ATP酶-F4': 'ATP synthase-F4',
+        'ATP酶-V1': 'ATP synthase-V1',
+        'ATP酶-V2': 'ATP synthase-V2',
+        'ATP酶-VA1': 'ATP synthase-VA1',
+    }
+    
+    # Mapping of 20 standard amino acids to their biosynthesis pathway names (English)
+    # An amino acid is considered "present" if ANY of its pathways has completeness >= threshold
+    AMINO_ACID_PATHWAY_MAP = {
+        'Alanine (Ala)': {
+            'pathways': [],
+            'note': 'Synthesized by simple transamination from pyruvate; no dedicated pathway in database'
+        },
+        'Arginine (Arg)': {
+            'pathways': ['Arginine biosynthesis-glutamate', 'Arginine biosynthesis-ornithine'],
+            'note': ''
+        },
+        'Asparagine (Asn)': {
+            'pathways': [],
+            'note': 'Synthesized from aspartate by asparagine synthetase; no dedicated pathway in database'
+        },
+        'Aspartic acid (Asp)': {
+            'pathways': [],
+            'note': 'Central metabolite derived from oxaloacetate; no dedicated pathway in database'
+        },
+        'Cysteine (Cys)': {
+            'pathways': ['Cysteine biosynthesis-serine', 'Cysteine biosynthesis-methionine'],
+            'note': ''
+        },
+        'Glutamic acid (Glu)': {
+            'pathways': [],
+            'note': 'Central metabolite from alpha-ketoglutarate; no dedicated pathway in database'
+        },
+        'Glutamine (Gln)': {
+            'pathways': [],
+            'note': 'Synthesized from glutamate by glutamine synthetase; no dedicated pathway in database'
+        },
+        'Glycine (Gly)': {
+            'pathways': [],
+            'note': 'Derived from serine via serine hydroxymethyltransferase; no dedicated pathway in database'
+        },
+        'Histidine (His)': {
+            'pathways': ['Histidine biosynthesis-PRPP'],
+            'note': ''
+        },
+        'Isoleucine (Ile)': {
+            'pathways': ['Isoleucine biosynthesis-threonine', 'Isoleucine biosynthesis-pyruvate',
+                         'Valine and isoleucine biosynthesis-pyruvate'],
+            'note': ''
+        },
+        'Leucine (Leu)': {
+            'pathways': ['Leucine biosynthesis-oxoisovalerate'],
+            'note': ''
+        },
+        'Lysine (Lys)': {
+            'pathways': ['Lysine biosynthesis-succinyl-DAP pathway', 'Lysine biosynthesis-oxoglutarate',
+                         'Lysine biosynthesis-acetyl-DAP pathway', 'Lysine biosynthesis-AAA pathway',
+                         'Lysine biosynthesis-DAP dehydrogenase pathway', 'Lysine biosynthesis-DAP transaminase pathway'],
+            'note': ''
+        },
+        'Methionine (Met)': {
+            'pathways': ['Methionine biosynthesis-aspartate'],
+            'note': ''
+        },
+        'Phenylalanine (Phe)': {
+            'pathways': ['Phenylalanine biosynthesis-chorismate'],
+            'note': ''
+        },
+        'Proline (Pro)': {
+            'pathways': ['Proline biosynthesis-glutamate'],
+            'note': ''
+        },
+        'Serine (Ser)': {
+            'pathways': ['Serine biosynthesis-glycerate'],
+            'note': ''
+        },
+        'Threonine (Thr)': {
+            'pathways': ['Threonine biosynthesis-aspartate'],
+            'note': ''
+        },
+        'Tryptophan (Trp)': {
+            'pathways': ['Tryptophan biosynthesis-chorismate'],
+            'note': ''
+        },
+        'Tyrosine (Tyr)': {
+            'pathways': ['Tyrosine biosynthesis-choline', 'Tyrosine biosynthesis-chorismate'],
+            'note': ''
+        },
+        'Valine (Val)': {
+            'pathways': ['Valine and isoleucine biosynthesis-pyruvate'],
+            'note': ''
+        },
+    }
     
     def __init__(self, config: Dict[str, Any]):
         """
-        初始化培养性分析器
+        Initialize cultivation analyzer
         
         Args:
-            config: 配置字典，包含工具路径、数据库路径等参数
+            config: Configuration dictionary containing tool paths, database paths and other parameters
         """
-        # 从配置中获取参数
+        # Get parameters from configuration
         self.diamond_path = config.get('tools', {}).get('diamond', {}).get('path', 'diamond.exe')
         self.use_wsl = config.get('tools', {}).get('diamond', {}).get('use_wsl', False)
         self.threads = config.get('tools', {}).get('diamond', {}).get('threads', 4)
         self.evalue = config.get('tools', {}).get('diamond', {}).get('evalue', 1e-5)
         
-        # 数据库路径 - 支持绝对路径和相对路径
+        # Database paths - support absolute and relative paths
         base_dir = config.get('databases', {}).get('base_dir', 'data/databases')
         
-        # 如果base_dir是相对路径，则相对于当前工作目录
+        # If base_dir is relative path, make it relative to current working directory
         if not os.path.isabs(base_dir):
             base_dir = os.path.abspath(base_dir)
             
         self.cultivation_dir = os.path.join(base_dir, 'cultivation')
         
-        # 各类代谢通路目录 - 更新为新的数据库结构
+        # Metabolic pathway directories - updated to new database structure
         self.amino_acid_dir = os.path.join(self.cultivation_dir, 'path.aa')
         self.vitamin_dir = os.path.join(self.cultivation_dir, 'path.vc')
         self.nucleotide_dir = os.path.join(self.cultivation_dir, 'path_hesuan')
         self.atp_dir = os.path.join(self.cultivation_dir, 'path_atp')
         
-        # 从目录中自动获取所有代谢途径文件
-        self.amino_acid_pathways = self._discover_pathways(self.amino_acid_dir, "氨基酸")
-        self.vitamin_pathways = self._discover_pathways(self.vitamin_dir, "维生素和辅酶")
-        self.nucleotide_pathways = self._discover_pathways(self.nucleotide_dir, "核酸合成")
-        self.atp_pathways = self._discover_pathways(self.atp_dir, "ATP酶")
+        # Automatically get all metabolic pathway files from directory
+        self.amino_acid_pathways = self._discover_pathways(self.amino_acid_dir, "Amino acid")
+        self.vitamin_pathways = self._discover_pathways(self.vitamin_dir, "Vitamin and coenzyme")
+        self.nucleotide_pathways = self._discover_pathways(self.nucleotide_dir, "Nucleotide synthesis")
+        self.atp_pathways = self._discover_pathways(self.atp_dir, "ATPase")
         
         total_pathways = len(self.amino_acid_pathways) + len(self.vitamin_pathways) + len(self.nucleotide_pathways) + len(self.atp_pathways)
-        print(f"初始化培养性分析器，将分析 {total_pathways} 个代谢通路")
-        print(f"  - 氨基酸代谢通路: {len(self.amino_acid_pathways)} 个")
-        print(f"  - 维生素和辅酶代谢通路: {len(self.vitamin_pathways)} 个")
-        print(f"  - 核酸合成途径: {len(self.nucleotide_pathways)} 个")
-        print(f"  - ATP酶代谢途径: {len(self.atp_pathways)} 个")
+        print(f"Initialize cultivation analyzer, will analyze {total_pathways} metabolic pathways")
+        print(f"  - Amino acid metabolic pathways: {len(self.amino_acid_pathways)} ")
+        print(f"  - Vitamin and coenzyme metabolic pathways: {len(self.vitamin_pathways)} ")
+        print(f"  - Nucleotide synthesis pathways: {len(self.nucleotide_pathways)} ")
+        print(f"  - ATPase metabolic pathways: {len(self.atp_pathways)} ")
     
     def _discover_pathways(self, directory: str, pathway_type: str) -> Dict[str, str]:
         """
-        从指定目录中发现所有代谢途径
+        Discover all metabolic pathways from specified directory
         
         Args:
-            directory: 包含FASTA文件的目录路径
-            pathway_type: 通路类型描述（用于日志输出）
+            directory: Directory path containing FASTA files
+            pathway_type: Pathway type description (for log output)
             
         Returns:
-            字典 {pathway_name: file_path}
+            Dictionary {pathway_name: file_path}
         """
         pathways = {}
         
         if not os.path.exists(directory):
-            print(f"警告: {pathway_type}FASTA目录不存在: {directory}")
+            print(f"Warning: {pathway_type} FASTA directory does not exist: {directory}")
             return pathways
             
-        # 查找所有.fasta文件
+        # Find all .fasta files
         fasta_files = glob.glob(os.path.join(directory, "*.fasta"))
         
         for file_path in fasta_files:
             file_name = os.path.basename(file_path)
             pathway_name = file_name.replace('.fasta', '')
-            pathways[pathway_name] = file_path
+            # Translate Chinese pathway names to English
+            english_name = self.PATHWAY_NAME_MAP.get(pathway_name, pathway_name)
+            pathways[english_name] = file_path
             
         return pathways
     
     def _parse_fasta_file(self, fasta_file: str) -> Dict[str, Dict[str, str]]:
         """
-        解析FASTA文件，提取基因和序列
+        Parse FASTA file, extract genes and sequences
         
         Args:
-            fasta_file: FASTA文件路径
+            fasta_file: FASTA file path
             
         Returns:
-            基因信息字典 {gene_name: {sequence: str, description: str}}
+            Gene information dictionary {gene_name: {sequence: str, description: str}}
         """
         genes = {}
         
         if not os.path.exists(fasta_file):
-            print(f"警告: FASTA文件不存在: {fasta_file}")
+            print(f"Warning: FASTA file does not exist: {fasta_file}")
             return genes
             
         with open(fasta_file, 'r') as f:
@@ -119,29 +297,29 @@ class CultivationAnalyzer:
             for line in f:
                 line = line.strip()
                 if line.startswith('>'):
-                    # 保存前一个基因
+                    # Save previous gene
                     if current_gene:
                         genes[current_gene] = {
                             'sequence': ''.join(current_seq),
                             'description': description
                         }
                     
-                    # 解析新基因头部
-                    header = line[1:]  # 移除'>'
+                    # Parse new gene header
+                    header = line[1:]  # Remove '>'
                     
-                    # 从新格式的头部信息中提取基因名
-                    # 格式如: >eco:b0907 K00831 phosphoserine aminotransferase [EC:2.6.1.52] | (RefSeq) serC; phosphoserine/phosphohydroxythreonine aminotransferase (A)
-                    # 提取基因名 (如 serC)
+                    # Extract gene name from new format header information
+                    # Format like: >eco:b0907 K00831 phosphoserine aminotransferase [EC:2.6.1.52] | (RefSeq) serC; phosphoserine/phosphohydroxythreonine aminotransferase (A)
+                    # Extract gene name (e.g., serC)
                     gene_match = re.search(r'\((RefSeq|GenBank)\)\s*([^;]+);', header)
                     if gene_match:
                         current_gene = gene_match.group(2).strip()
                     else:
-                        # 如果没有找到，尝试提取物种:基因格式中的基因部分
+                        # If not found, try to extract gene part from species:gene format
                         species_gene_match = re.match(r'([^:]+):([^:]+)', header.split()[0])
                         if species_gene_match:
                             current_gene = species_gene_match.group(2)
                         else:
-                            # 最后尝试提取第一个单词作为基因名
+                            # Finally try to extract first word as gene name
                             current_gene = header.split()[0]
                     
                     description = header
@@ -149,7 +327,7 @@ class CultivationAnalyzer:
                 else:
                     current_seq.append(line)
             
-            # 保存最后一个基因
+            # Save last gene
             if current_gene:
                 genes[current_gene] = {
                     'sequence': ''.join(current_seq),
@@ -160,35 +338,35 @@ class CultivationAnalyzer:
     
     def _run_diamond_search(self, query_seq: str, genome_file: str, evalue: float = 1e-5) -> Tuple[bool, Dict[str, Any]]:
         """
-        使用Diamond进行序列比对
+        Use Diamond for sequence alignment
         
         Args:
-            query_seq: 查询序列
-            genome_file: 基因组蛋白质序列文件路径
-            evalue: E值阈值
+            query_seq: Query sequence
+            genome_file: Genome protein sequence file path
+            evalue: E-value threshold
             
         Returns:
-            (是否找到匹配, 匹配详情)
+            (Whether match found, match details)
         """
         try:
-            # 创建临时查询文件
+            # Create temporary query file
             with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.faa') as temp_query:
                 temp_query.write(f">query\n{query_seq}\n")
                 temp_query_path = temp_query.name
             
-            # 创建临时输出文件
+            # Create temporary output file
             with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt') as temp_output:
                 temp_output_path = temp_output.name
             
-            # 创建临时数据库文件
+            # Create temporary database file
             temp_db_path = temp_query_path.replace('.faa', '.dmnd')
             
-            # 构建Diamond命令
+            # Build Diamond command
             diamond_cmd = self.diamond_path
             if self.use_wsl:
                 diamond_cmd = f"wsl {diamond_cmd}"
             
-            # 为基因组文件创建Diamond数据库
+            # Create Diamond database for genome file
             make_db_cmd = [
                 diamond_cmd, 'makedb',
                 '--in', genome_file,
@@ -198,18 +376,18 @@ class CultivationAnalyzer:
             db_result = subprocess.run(make_db_cmd, capture_output=True, text=True)
             
             if db_result.returncode != 0:
-                # 清理临时文件
+                # Clean up temporary files
                 self._cleanup_temp_files([temp_query_path, temp_output_path, temp_db_path])
-                return False, {'found': False, 'error': '数据库创建失败'}
+                return False, {'found': False, 'error': 'Database creation failed'}
             
-            # 运行diamond blastp命令
+            # Run diamond blastp command
             blast_cmd = [
                 diamond_cmd, 'blastp',
                 '--query', temp_query_path,
                 '--db', temp_db_path,
-                '--outfmt', '6',  # 表格格式
+                '--outfmt', '6',  # Table format
                 '--evalue', str(evalue),
-                '--max-target-seqs', '1',  # 只返回最佳匹配
+                '--max-target-seqs', '1',  # Only return best match
                 '--out', temp_output_path
             ]
             
@@ -231,62 +409,62 @@ class CultivationAnalyzer:
                                     'bitscore': float(parts[11])
                                 }
                                 
-                                # 设置更宽松的条件，因为远缘物种可能同源性较低
+                                # Set more relaxed conditions because distant species may have lower homology
                                 if hit_info['evalue'] <= evalue and hit_info['identity'] >= 20 and hit_info['alignment_length'] >= 30:
                                     match_details['found'] = True
                                     match_details['hits'].append(hit_info)
             
-            # 清理临时文件
+            # Clean up temporary files
             self._cleanup_temp_files([temp_query_path, temp_output_path, temp_db_path])
             
             return match_details['found'], match_details
             
         except Exception as e:
-            print(f"Diamond搜索出错: {e}")
+            print(f"Diamond search error: {e}")
             return False, {'found': False, 'error': str(e)}
     
     def _cleanup_temp_files(self, file_paths: List[str]):
-        """清理临时文件"""
+        """Clean up temporary files"""
         for file_path in file_paths:
             try:
                 if os.path.exists(file_path):
                     os.unlink(file_path)
             except Exception as e:
-                print(f"清理临时文件失败 {file_path}: {e}")
+                print(f"Clean up temporary files failed {file_path}: {e}")
     
     def analyze_genome(self, genome_file: str) -> Dict[str, Dict[str, Any]]:
         """
-        分析基因组中的代谢通路（氨基酸、维生素、辅酶、核酸合成和ATP酶代谢）
+        Analyze metabolic pathways in genome (amino acid, vitamin, coenzyme, nucleotide synthesis and ATPase metabolism)
         
         Args:
-            genome_file: 基因组文件路径
+            genome_file: genome file path
             
         Returns:
-            分析结果字典
+            Analysis result dictionary
         """
         if not os.path.exists(genome_file):
-            print(f"错误: 基因组文件不存在: {genome_file}")
+            print(f"Error: Genome file does not exist: {genome_file}")
             return {}
         
         results = {}
         
-        # 合并所有通路
+        # Merge all pathways
         all_pathways = {**self.amino_acid_pathways, **self.vitamin_pathways, **self.nucleotide_pathways, **self.atp_pathways}
         
-        # 分析每个通路
+        # Analyze each pathway
         for pathway_name, fasta_file in all_pathways.items():
             if not os.path.exists(fasta_file):
-                print(f"警告: FASTA文件不存在: {fasta_file}")
+                print(f"Warning: FASTA file does not exist: {fasta_file}")
                 continue
             
-            # 解析FASTA文件获取基因
+            # Parse FASTA file to get genes
             genes = self._parse_fasta_file(fasta_file)
             
             if not genes:
-                print(f"警告: 无法从 {fasta_file} 解析基因")
+                print(f"Warning: Cannot parse from {fasta_file} parse genes")
                 continue
             
-            # 分析通路
+            # Analyze pathway
             pathway_result = {
                 'pathway': pathway_name,
                 'total_genes': len(genes),
@@ -296,12 +474,12 @@ class CultivationAnalyzer:
                 'completeness': 0.0
             }
             
-            # 记录已找到的基因，避免重复比对
+            # Record found genes to avoid duplicate alignment
             found_genes = set()
             
-            # 对每个基因进行比对
+            # Align each gene
             for gene_name, gene_info in genes.items():
-                # 如果已经找到该基因，跳过
+                # If gene already found, skip
                 if gene_name in found_genes:
                     pathway_result['gene_details'][gene_name] = {
                         'found': True,
@@ -311,7 +489,7 @@ class CultivationAnalyzer:
                     pathway_result['found_genes'] += 1
                     continue
                 
-                # 使用Diamond进行序列比对
+                # Use Diamond for sequence alignment
                 found, match_details = self._run_diamond_search(
                     gene_info['sequence'], 
                     genome_file
@@ -326,11 +504,11 @@ class CultivationAnalyzer:
                 if found:
                     found_genes.add(gene_name)
                     pathway_result['found_genes'] += 1
-                    print(f"找到 {pathway_name} 通路的 {gene_name} 基因")
+                    print(f"Found {pathway_name} pathway {gene_name} gene")
                 else:
                     pathway_result['missing_genes'].append(gene_name)
             
-            # 计算完整度
+            # Calculate completeness
             if pathway_result['total_genes'] > 0:
                 pathway_result['completeness'] = pathway_result['found_genes'] / pathway_result['total_genes']
             
@@ -340,29 +518,29 @@ class CultivationAnalyzer:
     
     def generate_report(self, results: Dict[str, Dict[str, Any]]) -> str:
         """
-        生成分析报告
+        Generate analysis report
         
         Args:
-            results: 分析结果
+            results: analysis results
             
         Returns:
-            报告文本
+            Report text
         """
         report = []
-        report.append("代谢通路分析报告")
+        report.append("Metabolic Pathway Analysis Report")
         report.append("=" * 50)
         report.append("")
         
-        # 总体统计
+        # Overall statistics
         total_pathways = len(results)
         complete_pathways = sum(1 for r in results.values() if r['completeness'] == 1.0)
         
-        report.append(f"总通路数: {total_pathways}")
-        report.append(f"完整通路数: {complete_pathways}")
-        report.append(f"不完整通路数: {total_pathways - complete_pathways}")
+        report.append(f"Total pathways: {total_pathways}")
+        report.append(f"Complete pathways: {complete_pathways}")
+        report.append(f"Incomplete pathways: {total_pathways - complete_pathways}")
         report.append("")
         
-        # 分类统计
+        # Classification statistics
         aa_pathways = {k: v for k, v in results.items() if k in self.amino_acid_pathways}
         vc_pathways = {k: v for k, v in results.items() if k in self.vitamin_pathways}
         nt_pathways = {k: v for k, v in results.items() if k in self.nucleotide_pathways}
@@ -373,60 +551,60 @@ class CultivationAnalyzer:
         nt_complete = sum(1 for r in nt_pathways.values() if r['completeness'] == 1.0)
         atp_complete = sum(1 for r in atp_pathways.values() if r['completeness'] == 1.0)
         
-        report.append("通路分类统计:")
-        report.append(f"  氨基酸代谢通路: {len(aa_pathways)} 个 (完整: {aa_complete})")
-        report.append(f"  维生素和辅酶代谢通路: {len(vc_pathways)} 个 (完整: {vc_complete})")
-        report.append(f"  核酸合成途径: {len(nt_pathways)} 个 (完整: {nt_complete})")
-        report.append(f"  ATP酶代谢途径: {len(atp_pathways)} 个 (完整: {atp_complete})")
+        report.append("Pathway classification statistics:")
+        report.append(f"  Amino acid metabolic pathways: {len(aa_pathways)}  (complete: {aa_complete})")
+        report.append(f"  Vitamin and coenzyme metabolic pathways: {len(vc_pathways)}  (complete: {vc_complete})")
+        report.append(f"  Nucleotide synthesis pathways: {len(nt_pathways)}  (complete: {nt_complete})")
+        report.append(f"  ATPase metabolic pathways: {len(atp_pathways)}  (complete: {atp_complete})")
         report.append("")
         
-        # 各通路详细情况
-        report.append("各通路详细情况:")
+        # Detailed information for each pathway
+        report.append("Detailed information for each pathway:")
         report.append("-" * 50)
         
         for pathway, result in results.items():
             if pathway in self.amino_acid_pathways:
-                pathway_type = "氨基酸"
+                pathway_type = "Amino acid"
             elif pathway in self.vitamin_pathways:
-                pathway_type = "维生素/辅酶"
+                pathway_type = "Vitamin/coenzyme"
             elif pathway in self.nucleotide_pathways:
-                pathway_type = "核酸合成"
+                pathway_type = "Nucleotide synthesis"
             else:
-                pathway_type = "ATP酶"
+                pathway_type = "ATPase"
                 
-            report.append(f"[{pathway_type}] {pathway} 通路:")
-            report.append(f"  完整度: {result['completeness']:.2%} ({result['found_genes']}/{result['total_genes']})")
+            report.append(f"[{pathway_type}] {pathway} pathway:")
+            report.append(f"  Completeness: {result['completeness']:.2%} ({result['found_genes']}/{result['total_genes']})")
             
             if result['missing_genes']:
-                report.append(f"  缺失基因: {', '.join(result['missing_genes'])}")
+                report.append(f"  Missing genes: {', '.join(result['missing_genes'])}")
             else:
-                report.append("  所有基因均存在")
+                report.append("  All genes present")
             
             report.append("")
         
-        # 完整通路总结
+        # Complete pathway summary
         complete_aa_pathways = [pathway for pathway, result in aa_pathways.items() if result['completeness'] == 1.0]
         complete_vc_pathways = [pathway for pathway, result in vc_pathways.items() if result['completeness'] == 1.0]
         complete_nt_pathways = [pathway for pathway, result in nt_pathways.items() if result['completeness'] == 1.0]
         complete_atp_pathways = [pathway for pathway, result in atp_pathways.items() if result['completeness'] == 1.0]
         
         if complete_aa_pathways:
-            report.append("完整的氨基酸代谢通路:")
+            report.append("Complete amino acid metabolic pathways:")
             report.append(f"  {', '.join(complete_aa_pathways)}")
             report.append("")
         
         if complete_vc_pathways:
-            report.append("完整的维生素和辅酶代谢通路:")
+            report.append("Complete vitamin and coenzyme metabolic pathways:")
             report.append(f"  {', '.join(complete_vc_pathways)}")
             report.append("")
         
         if complete_nt_pathways:
-            report.append("完整的核酸合成途径:")
+            report.append("Complete nucleotide synthesis pathways:")
             report.append(f"  {', '.join(complete_nt_pathways)}")
             report.append("")
         
         if complete_atp_pathways:
-            report.append("完整的ATP酶代谢途径:")
+            report.append("Complete ATPase metabolic pathways:")
             report.append(f"  {', '.join(complete_atp_pathways)}")
             report.append("")
         
@@ -434,21 +612,21 @@ class CultivationAnalyzer:
     
     def generate_summary_recommendations(self, results: Dict[str, Dict[str, Any]]) -> str:
         """
-        生成汇总建议
+        Generate summary recommendations
         
         Args:
-            results: 分析结果
+            results: analysis results
             
         Returns:
-            建议文本
+            Recommendation text
         """
-        # 分类统计
+        # Classification statistics
         aa_pathways = {k: v for k, v in results.items() if k in self.amino_acid_pathways}
         vc_pathways = {k: v for k, v in results.items() if k in self.vitamin_pathways}
         nt_pathways = {k: v for k, v in results.items() if k in self.nucleotide_pathways}
         atp_pathways = {k: v for k, v in results.items() if k in self.atp_pathways}
         
-        # 计算各类通路的完整度
+        # Calculate completeness for each pathway type
         aa_complete = sum(1 for r in aa_pathways.values() if r['completeness'] == 1.0)
         vc_complete = sum(1 for r in vc_pathways.values() if r['completeness'] == 1.0)
         nt_complete = sum(1 for r in nt_pathways.values() if r['completeness'] == 1.0)
@@ -459,75 +637,75 @@ class CultivationAnalyzer:
         nt_avg_completeness = sum(r['completeness'] for r in nt_pathways.values()) / len(nt_pathways) if nt_pathways else 0
         atp_avg_completeness = sum(r['completeness'] for r in atp_pathways.values()) / len(atp_pathways) if atp_pathways else 0
         
-        # 生成建议
+        # Generate recommendations
         recommendations = []
-        recommendations.append("培养性分析建议")
+        recommendations.append("Cultivability Analysis Recommendations")
         recommendations.append("=" * 50)
         recommendations.append("")
         
-        # 氨基酸代谢能力评估
+        # Amino acid metabolism capability assessment
         if aa_avg_completeness >= 0.8:
-            recommendations.append("该微生物具有强大的氨基酸合成能力，可能能够自主合成大部分必需氨基酸，培养难度较低。")
+            recommendations.append("This microorganism has strong amino acid synthesis capability, may be able to synthesize most essential amino acids independently, low cultivation difficulty.")
         elif aa_avg_completeness >= 0.5:
-            recommendations.append("该微生物具有一定的氨基酸合成能力，但可能需要补充部分必需氨基酸。")
+            recommendations.append("This microorganism has some amino acid synthesis capability, but may need supplementation with some essential amino acids.")
         else:
-            recommendations.append("该微生物氨基酸合成能力较弱，建议在培养基中补充多种氨基酸。")
+            recommendations.append("This microorganism has weak amino acid synthesis capability, it is recommended to supplement multiple amino acids in the culture medium.")
         
-        # 维生素和辅酶代谢能力评估
+        # Vitamin and coenzyme metabolism capability assessment
         if vc_avg_completeness >= 0.8:
-            recommendations.append("该微生物具有强大的维生素和辅酶合成能力，可能不需要额外补充维生素。")
+            recommendations.append("This microorganism has strong vitamin and coenzyme synthesis capability, may not need additional vitamin supplementation.")
         elif vc_avg_completeness >= 0.5:
-            recommendations.append("该微生物具有一定的维生素和辅酶合成能力，但可能需要补充部分维生素。")
+            recommendations.append("This microorganism has some vitamin and coenzyme synthesis capability, but may need supplementation with some vitamins.")
         else:
-            recommendations.append("该微生物维生素和辅酶合成能力较弱，建议在培养基中补充多种维生素。")
+            recommendations.append("This microorganism has weak vitamin and coenzyme synthesis capability, it is recommended to supplement multiple vitamins in the culture medium.")
         
-        # 核酸合成能力评估
+        # Nucleotide synthesis capability assessment
         if nt_avg_completeness >= 0.8:
-            recommendations.append("该微生物具有强大的核酸合成能力，能够自主合成嘌呤和嘧啶。")
+            recommendations.append("This microorganism has strong nucleotide synthesis capability, can independently synthesize purines and pyrimidines.")
         elif nt_avg_completeness >= 0.5:
-            recommendations.append("该微生物具有一定的核酸合成能力，但可能需要补充部分核苷酸前体。")
+            recommendations.append("This microorganism has some nucleotide synthesis capability, but may need supplementation with some nucleotide precursors.")
         else:
-            recommendations.append("该微生物核酸合成能力较弱，建议在培养基中补充核苷酸或其前体。")
+            recommendations.append("This microorganism has weak nucleotide synthesis capability, it is recommended to supplement nucleotides or their precursors in the culture medium.")
         
-        # ATP酶代谢能力评估
+        # ATPase metabolism capability assessment
         if atp_avg_completeness >= 0.8:
-            recommendations.append("该微生物具有完整的ATP酶系统，能量代谢能力强。")
+            recommendations.append("This microorganism has complete ATPase system, strong energy metabolism capability.")
         elif atp_avg_completeness >= 0.5:
-            recommendations.append("该微生物ATP酶系统部分完整，能量代谢能力一般。")
+            recommendations.append("This microorganism has partially complete ATPase system, moderate energy metabolism capability.")
         else:
-            recommendations.append("该微生物ATP酶系统不完整，能量代谢可能受限，建议优化培养条件。")
+            recommendations.append("This microorganism has incomplete ATPase system, energy metabolism may be limited, it is recommended to optimize culture conditions.")
         
         recommendations.append("")
         
-        # 总体培养性评估
+        # Overall cultivability assessment
         total_avg_completeness = (aa_avg_completeness + vc_avg_completeness + nt_avg_completeness + atp_avg_completeness) / 4
         
         if total_avg_completeness >= 0.8:
-            recommendations.append("总体评估：该微生物培养难度较低，可能具有广泛的营养适应性。")
+            recommendations.append("Overall assessment: This microorganism is relatively easy to culture, may have broad nutritional adaptability.")
         elif total_avg_completeness >= 0.5:
-            recommendations.append("总体评估：该微生物培养难度中等，需要适当的营养补充。")
+            recommendations.append("Overall assessment: This microorganism has moderate culture difficulty, requires appropriate nutritional supplementation.")
         else:
-            recommendations.append("总体评估：该微生物培养难度较高，需要复杂的营养配方和优化的培养条件。")
+            recommendations.append("Overall assessment: This microorganism is difficult to culture, requires complex nutritional formulation and optimized culture conditions.")
         
         return '\n'.join(recommendations)
     
     def get_summary(self, results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
-        获取分析结果摘要
+        Get analysis result summary
         
         Args:
-            results: 分析结果
+            results: analysis results
             
         Returns:
-            摘要字典
+            Summary dictionary
         """
-        # 分类统计
+        # Classification statistics
         aa_pathways = {k: v for k, v in results.items() if k in self.amino_acid_pathways}
         vc_pathways = {k: v for k, v in results.items() if k in self.vitamin_pathways}
         nt_pathways = {k: v for k, v in results.items() if k in self.nucleotide_pathways}
         atp_pathways = {k: v for k, v in results.items() if k in self.atp_pathways}
         
-        # 计算各类通路的完整度
+        # Calculate completeness for each pathway type
         aa_complete = sum(1 for r in aa_pathways.values() if r['completeness'] == 1.0)
         vc_complete = sum(1 for r in vc_pathways.values() if r['completeness'] == 1.0)
         nt_complete = sum(1 for r in nt_pathways.values() if r['completeness'] == 1.0)
@@ -570,37 +748,37 @@ class CultivationAnalyzer:
     
     def export_to_csv(self, results: Dict[str, Dict[str, Any]], output_file: str):
         """
-        将分析结果导出为CSV文件
+        Export analysis results to CSV file
         
         Args:
-            results: 分析结果
-            output_file: 输出文件路径
+            results: analysis results
+            output_file: output file path
         """
         rows = []
         
         for pathway_name, pathway_result in results.items():
-            # 确定通路类型
+            # Determine pathway type
             if pathway_name in self.amino_acid_pathways:
-                pathway_type = "氨基酸"
+                pathway_type = "Amino acid"
             elif pathway_name in self.vitamin_pathways:
-                pathway_type = "维生素/辅酶"
+                pathway_type = "Vitamin/coenzyme"
             elif pathway_name in self.nucleotide_pathways:
-                pathway_type = "核酸合成"
+                pathway_type = "Nucleotide synthesis"
             else:
-                pathway_type = "ATP酶"
+                pathway_type = "ATPase"
             
-            # 添加通路总体信息
+            # Add pathway overall information
             rows.append({
                 'Pathway_Type': pathway_type,
                 'Pathway_Name': pathway_name,
-                'Gene_Name': '总体',
+                'Gene_Name': 'Overall',
                 'Found': pathway_result['found_genes'],
                 'Total': pathway_result['total_genes'],
                 'Completeness': pathway_result['completeness'],
-                'Description': f"完整度: {pathway_result['completeness']:.2%}"
+                'Description': f"Completeness: {pathway_result['completeness']:.2%}"
             })
             
-            # 添加每个基因的详细信息
+            # Add detailed information for each gene
             for gene_name, gene_detail in pathway_result['gene_details'].items():
                 rows.append({
                     'Pathway_Type': pathway_type,
@@ -612,61 +790,330 @@ class CultivationAnalyzer:
                     'Description': gene_detail['description']
                 })
         
-        # 创建DataFrame并保存为CSV
+        # Create DataFrame and save as CSV
         df = pd.DataFrame(rows)
         df.to_csv(output_file, index=False)
-        print(f"结果已导出到: {output_file}")
+        print(f"Results exported to: {output_file}")
+    
+    def generate_cultivability_assessment(self, results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Generate cultivability assessment based on metabolic pathway analysis
+        
+        Args:
+            results: analysis results
+            
+        Returns:
+            Cultivability assessment dictionary
+        """
+        summary = self.get_summary(results)
+        
+        total_avg = (
+            summary['amino_acid']['avg_completeness'] +
+            summary['vitamin_coenzyme']['avg_completeness'] +
+            summary['nucleotide']['avg_completeness'] +
+            summary['atp']['avg_completeness']
+        ) / 4
+        
+        if total_avg >= 0.8:
+            cultivability = 'high'
+            description = 'Organism has strong metabolic synthesis capability'
+        elif total_avg >= 0.5:
+            cultivability = 'medium'
+            description = 'Organism has moderate metabolic synthesis capability'
+        else:
+            cultivability = 'low'
+            description = 'Organism has limited metabolic synthesis capability'
+        
+        return {
+            'overall_cultivability': cultivability,
+            'description': description,
+            'average_pathway_completeness': round(total_avg, 4),
+            'amino_acid_completeness': round(summary['amino_acid']['avg_completeness'], 4),
+            'vitamin_coenzyme_completeness': round(summary['vitamin_coenzyme']['avg_completeness'], 4),
+            'nucleotide_completeness': round(summary['nucleotide']['avg_completeness'], 4),
+            'atp_completeness': round(summary['atp']['avg_completeness'], 4),
+            'confidence': 0.85 if summary['total_pathways'] > 10 else 0.6
+        }
+    
+    def export_results(self, results: Dict[str, Dict[str, Any]], 
+                       cultivability_assessment: Dict[str, Any],
+                       output_file: str, format: str = 'csv'):
+        """
+        Export cultivation analysis results and cultivability assessment
+        
+        Args:
+            results: analysis results
+            cultivability_assessment: cultivability assessment
+            output_file: output file path
+            format: output format ('csv' or 'json')
+        """
+        if format == 'csv':
+            self.export_to_csv(results, output_file)
+        elif format == 'json':
+            export_data = {
+                'cultivability_assessment': cultivability_assessment,
+                'pathway_results': {}
+            }
+            for pathway_name, pathway_result in results.items():
+                export_data['pathway_results'][pathway_name] = {
+                    'total_genes': pathway_result['total_genes'],
+                    'found_genes': pathway_result['found_genes'],
+                    'completeness': pathway_result['completeness'],
+                    'missing_genes': pathway_result['missing_genes']
+                }
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+    
+    def analyze_amino_acid_biosynthesis(self, results: Dict[str, Dict[str, Any]],
+                                         completeness_threshold: float = 0.5) -> Dict[str, Any]:
+        """
+        Analyze which of the 20 standard amino acid biosynthesis pathways are present or missing
+        
+        Args:
+            results: Cultivation analysis results from analyze_genome()
+            completeness_threshold: Minimum completeness to consider a pathway as "present" (default 0.5)
+            
+        Returns:
+            Dictionary with amino acid biosynthesis status for all 20 standard amino acids
+        """
+        aa_status = {}
+        present_list = []
+        missing_list = []
+        no_pathway_list = []
+        
+        for aa_name, aa_info in self.AMINO_ACID_PATHWAY_MAP.items():
+            pathways = aa_info['pathways']
+            note = aa_info['note']
+            
+            if not pathways:
+                # No dedicated pathway in database
+                aa_status[aa_name] = {
+                    'status': 'no_dedicated_pathway',
+                    'pathways_checked': [],
+                    'best_completeness': None,
+                    'note': note
+                }
+                no_pathway_list.append(aa_name)
+                continue
+            
+            # Check each pathway for this amino acid
+            best_completeness = 0.0
+            best_pathway = None
+            pathway_details = []
+            
+            for pathway_name in pathways:
+                if pathway_name in results:
+                    completeness = results[pathway_name]['completeness']
+                    found_genes = results[pathway_name]['found_genes']
+                    total_genes = results[pathway_name]['total_genes']
+                    pathway_details.append({
+                        'name': pathway_name,
+                        'completeness': completeness,
+                        'found_genes': found_genes,
+                        'total_genes': total_genes
+                    })
+                    if completeness > best_completeness:
+                        best_completeness = completeness
+                        best_pathway = pathway_name
+                else:
+                    pathway_details.append({
+                        'name': pathway_name,
+                        'completeness': 0.0,
+                        'found_genes': 0,
+                        'total_genes': 0,
+                        'note': 'Pathway not detected'
+                    })
+            
+            if best_completeness >= completeness_threshold:
+                status = 'present'
+                present_list.append(aa_name)
+            elif best_completeness > 0:
+                status = 'partial'
+                missing_list.append(aa_name)
+            else:
+                status = 'missing'
+                missing_list.append(aa_name)
+            
+            aa_status[aa_name] = {
+                'status': status,
+                'pathways_checked': pathway_details,
+                'best_completeness': round(best_completeness, 4),
+                'best_pathway': best_pathway,
+                'note': note
+            }
+        
+        return {
+            'amino_acid_status': aa_status,
+            'summary': {
+                'total_amino_acids': 20,
+                'present': len(present_list),
+                'missing_or_partial': len(missing_list),
+                'no_dedicated_pathway': len(no_pathway_list),
+                'present_list': present_list,
+                'missing_list': missing_list,
+                'no_pathway_list': no_pathway_list
+            },
+            'completeness_threshold': completeness_threshold
+        }
+    
+    def print_amino_acid_report(self, aa_analysis: Dict[str, Any]):
+        """
+        Print a formatted amino acid biosynthesis report
+        
+        Args:
+            aa_analysis: Results from analyze_amino_acid_biosynthesis()
+        """
+        aa_status = aa_analysis['amino_acid_status']
+        summary = aa_analysis['summary']
+        threshold = aa_analysis['completeness_threshold']
+        
+        print("\n" + "=" * 70)
+        print("Amino Acid Biosynthesis Pathway Analysis (20 Standard Amino Acids)")
+        print("=" * 70)
+        print(f"Completeness threshold: {threshold:.0%}")
+        print(f"Present: {summary['present']}/20  |  Missing/Partial: {summary['missing_or_partial']}/20  |  No dedicated pathway: {summary['no_dedicated_pathway']}/20")
+        print("-" * 70)
+        
+        # Print detailed table
+        print(f"{'Amino Acid':<28} {'Status':<12} {'Best Completeness':<20} {'Best Pathway'}")
+        print("-" * 70)
+        
+        for aa_name, info in sorted(aa_status.items()):
+            status = info['status']
+            if status == 'present':
+                status_str = 'PRESENT'
+            elif status == 'partial':
+                status_str = 'PARTIAL'
+            elif status == 'missing':
+                status_str = 'MISSING'
+            else:
+                status_str = 'N/A'
+            
+            completeness = info['best_completeness']
+            comp_str = f"{completeness:.1%}" if completeness is not None else 'N/A'
+            
+            best_pathway = info.get('best_pathway', '') or ''
+            if status == 'no_dedicated_pathway':
+                best_pathway = info.get('note', '')
+            
+            print(f"{aa_name:<28} {status_str:<12} {comp_str:<20} {best_pathway}")
+        
+        print("-" * 70)
+        
+        # Print missing amino acids summary
+        if summary['missing_list']:
+            print("\nMissing or incomplete amino acid biosynthesis pathways:")
+            for aa in summary['missing_list']:
+                info = aa_status[aa]
+                pathways_detail = ', '.join(
+                    f"{p['name']} ({p['completeness']:.1%})"
+                    for p in info.get('pathways_checked', [])
+                )
+                print(f"  - {aa}: {info['status'].upper()} [{pathways_detail}]")
+        
+        if summary['no_pathway_list']:
+            print("\nAmino acids without dedicated pathway in database:")
+            for aa in summary['no_pathway_list']:
+                note = aa_status[aa].get('note', '')
+                print(f"  - {aa}: {note}")
+        
+        print("=" * 70 + "\n")
+    
+    def export_amino_acid_csv(self, aa_analysis: Dict[str, Any], output_file: str):
+        """
+        Export amino acid biosynthesis analysis to CSV
+        
+        Args:
+            aa_analysis: Results from analyze_amino_acid_biosynthesis()
+            output_file: Output CSV file path
+        """
+        rows = []
+        aa_status = aa_analysis['amino_acid_status']
+        
+        for aa_name, info in sorted(aa_status.items()):
+            # Short amino acid name (e.g., "Alanine" from "Alanine (Ala)")
+            short_name = aa_name.split(' (')[0]
+            abbr = aa_name.split('(')[1].rstrip(')') if '(' in aa_name else ''
+            
+            if info['status'] == 'no_dedicated_pathway':
+                rows.append({
+                    'Amino_Acid': short_name,
+                    'Abbreviation': abbr,
+                    'Status': 'no_dedicated_pathway',
+                    'Best_Completeness': '',
+                    'Best_Pathway': '',
+                    'Pathway_Details': '',
+                    'Note': info.get('note', '')
+                })
+            else:
+                pathway_details = '; '.join(
+                    f"{p['name']} ({p['completeness']:.1%}, {p.get('found_genes', 0)}/{p.get('total_genes', 0)} genes)"
+                    for p in info.get('pathways_checked', [])
+                )
+                rows.append({
+                    'Amino_Acid': short_name,
+                    'Abbreviation': abbr,
+                    'Status': info['status'],
+                    'Best_Completeness': info['best_completeness'],
+                    'Best_Pathway': info.get('best_pathway', ''),
+                    'Pathway_Details': pathway_details,
+                    'Note': info.get('note', '')
+                })
+        
+        df = pd.DataFrame(rows)
+        df.to_csv(output_file, index=False)
+        print(f"Amino acid biosynthesis report exported to: {output_file}")
     
     def analyze_genomes_batch(self, faa_files: List[str], output_dir: str = None, parallel: bool = True, threads: int = 4) -> Dict[str, Dict[str, Any]]:
         """
-        批量分析多个基因组
+        Batch analyze multiple genomes
         
         Args:
-            faa_files: 基因组文件路径列表
-            output_dir: 输出目录路径（可选）
-            parallel: 是否使用并行处理
-            threads: 线程数（仅在并行模式下使用）
+            faa_files: list of genome file paths
+            output_dir: output directory path (optional)
+            parallel: whether to use parallel processing
+            threads: number of threads (only used in parallel mode)
             
         Returns:
-            所有基因组的分析结果字典
+            Analysis result dictionary for all genomes
         """
         if not faa_files:
-            print("错误: 没有提供基因组文件")
+            print("Error: No genome files provided")
             return {}
         
-        # 创建输出目录
+        # Create output directory
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
         start_time = time.time()
         all_results = {}
         
-        print(f"开始批量分析 {len(faa_files)} 个基因组")
+        print(f"Starting batch analysis of {len(faa_files)} genomes")
         
         if parallel:
-            # 并行处理
+            # Parallel processing
             all_results = self._analyze_genomes_parallel(faa_files, output_dir, threads)
         else:
-            # 串行处理
+            # Serial processing
             for i, genome_file in enumerate(faa_files):
                 genome_name = os.path.basename(genome_file).replace('.faa', '')
-                print(f"\n正在分析 {i+1}/{len(faa_files)}: {genome_name}")
+                print(f"\nAnalyzing {i+1}/{len(faa_files)}: {genome_name}")
                 
-                # 分析基因组
+                # Analyze genome
                 results = self.analyze_genome(genome_file)
                 
                 if results:
                     all_results[genome_name] = results
                     
-                    # 保存单个基因组的结果
+                    # Save single genome results
                     if output_dir:
                         self._save_genome_results(genome_name, results, output_dir)
         
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print(f"\n批量分析完成，耗时: {elapsed_time:.2f} 秒")
+        print(f"\nBatch analysis completed, time elapsed: {elapsed_time:.2f} seconds")
         
-        # 生成批量分析汇总报告
+        # Generate batch analysis summary report
         if output_dir and all_results:
             self._generate_batch_summary(all_results, output_dir)
         
@@ -674,91 +1121,91 @@ class CultivationAnalyzer:
     
     def _analyze_genomes_parallel(self, faa_files: List[str], output_dir: str, threads: int) -> Dict[str, Dict[str, Any]]:
         """
-        使用多线程并行分析多个基因组
+        Use multithreading to parallel analyze multiple genomes
         
         Args:
-            faa_files: 基因组文件路径列表
-            output_dir: 输出目录路径
-            threads: 线程数
+            faa_files: list of genome file paths
+            output_dir: output directory path
+            threads: number of threads
             
         Returns:
-            所有基因组的分析结果字典
+            Analysis result dictionary for all genomes
         """
         all_results = {}
         
-        # 创建线程锁，用于保护共享资源
+        # Create thread lock to protect shared resources
         lock = threading.Lock()
         
-        # 定义单个基因组分析任务
+        # Define single genome analysis task
         def analyze_single_genome(genome_file):
             genome_name = os.path.basename(genome_file).replace('.faa', '')
             
-            # 分析基因组
+            # Analyze genome
             results = self.analyze_genome(genome_file)
             
             if results:
-                # 使用线程锁保护共享资源
+                # Use thread lock to protect shared resources
                 with lock:
                     all_results[genome_name] = results
                     
-                    # 保存单个基因组的结果
+                    # Save single genome results
                     if output_dir:
                         self._save_genome_results(genome_name, results, output_dir)
             
             return genome_name, results is not None
         
-        # 使用线程池执行并行分析
+        # Use thread pool to execute parallel analysis
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            # 提交所有任务
+            # Submit all tasks
             future_to_file = {executor.submit(analyze_single_genome, genome_file): genome_file for genome_file in faa_files}
             
-            # 处理完成的任务
+            # Process completed tasks
             completed = 0
             for future in concurrent.futures.as_completed(future_to_file):
                 genome_file = future_to_file[future]
                 try:
                     genome_name, success = future.result()
                     completed += 1
-                    status = "成功" if success else "失败"
-                    print(f"进度: {completed}/{len(faa_files)} - {genome_name} 分析{status}")
+                    status = "Success" if success else "Failed"
+                    print(f"Progress: {completed}/{len(faa_files)} - {genome_name} analysis {status}")
                 except Exception as exc:
-                    print(f"分析 {genome_file} 时发生异常: {exc}")
+                    print(f"Exception occurred while analyzing {genome_file}: {exc}")
         
         return all_results
     
     def _save_genome_results(self, genome_name: str, results: Dict[str, Any], output_dir: str):
         """
-        保存单个基因组的分析结果
+        Save single genome analysis results
         
         Args:
-            genome_name: 基因组名称
-            results: 分析结果
-            output_dir: 输出目录路径
+            genome_name: genome name
+            results: analysis results
+            output_dir: output directory path
         """
-        # 导出CSV
+        # Export CSV
         csv_file = os.path.join(output_dir, f"{genome_name}_pathways.csv")
         self.export_to_csv(results, csv_file)
         
-        # 生成建议报告
+        # Generate recommendations report
         recommendations = self.generate_summary_recommendations(results)
         recommendations_file = os.path.join(output_dir, f"{genome_name}_recommendations.txt")
         with open(recommendations_file, 'w', encoding='utf-8') as f:
             f.write(recommendations)
         
-        # 保存完整结果为JSON
+        # Save complete results as JSON
         json_file = os.path.join(output_dir, f"{genome_name}_full_results.json")
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
     
     def _generate_batch_summary(self, all_results: Dict[str, Dict[str, Any]], output_dir: str):
         """
-        生成批量分析汇总报告
+        Generate batch analysis summary report
         
         Args:
-            all_results: 所有基因组的分析结果
-            output_dir: 输出目录路径
+            all_results: analysis results for all genomes
+            output_dir: output directory path
         """
-        # 创建汇总表格
+        # Create summary table
         summary_rows = []
         
         for genome_name, results in all_results.items():
@@ -783,71 +1230,71 @@ class CultivationAnalyzer:
             }
             summary_rows.append(row)
         
-        # 保存汇总表格为CSV
+        # Save summary table as CSV
         summary_df = pd.DataFrame(summary_rows)
         summary_csv = os.path.join(output_dir, "batch_summary.csv")
         summary_df.to_csv(summary_csv, index=False)
         
-        # 生成文本汇总报告
+        # Generate text summary report
         report = []
-        report.append("代谢通路批量分析汇总报告")
+        report.append("Metabolic pathway batch analysis summary report")
         report.append("=" * 50)
-        report.append(f"分析基因组数量: {len(all_results)}")
+        report.append(f"Number of genomes analyzed: {len(all_results)}")
         report.append("")
         
-        # 按氨基酸完整度排序
+        # Sort by amino acid completeness
         summary_rows_sorted = sorted(summary_rows, 
                                     key=lambda x: (int(x['AA_Complete']), float(x['AA_Avg_Completeness'].rstrip('%'))/100), 
                                     reverse=True)
         
-        report.append("基因组氨基酸合成能力排序:")
+        report.append("Genome amino acid synthesis capability ranking:")
         report.append("-" * 50)
         for i, row in enumerate(summary_rows_sorted):
-            report.append(f"{i+1}. {row['Genome']}: {row['AA_Complete']}/{row['AA_Total']} 氨基酸完整通路 (平均完整度: {row['AA_Avg_Completeness']})")
+            report.append(f"{i+1}. {row['Genome']}: {row['AA_Complete']}/{row['AA_Total']} complete amino acid pathways (avg completeness: {row['AA_Avg_Completeness']})")
         
         report.append("")
-        report.append("维生素和辅酶代谢能力排序:")
+        report.append("Vitamin and coenzyme metabolism capability ranking:")
         report.append("-" * 50)
         summary_rows_vc_sorted = sorted(summary_rows, 
                                       key=lambda x: (int(x['VC_Complete']), float(x['VC_Avg_Completeness'].rstrip('%'))/100), 
                                       reverse=True)
         for i, row in enumerate(summary_rows_vc_sorted):
-            report.append(f"{i+1}. {row['Genome']}: {row['VC_Complete']}/{row['VC_Total']} 完整维生素/辅酶通路 (平均完整度: {row['VC_Avg_Completeness']})")
+            report.append(f"{i+1}. {row['Genome']}: {row['VC_Complete']}/{row['VC_Total']} complete vitamin/coenzyme pathways (avg completeness: {row['VC_Avg_Completeness']})")
         
         report.append("")
-        report.append("核酸合成能力排序:")
+        report.append("Nucleotide synthesis capability ranking:")
         report.append("-" * 50)
         summary_rows_nt_sorted = sorted(summary_rows, 
                                       key=lambda x: (int(x['NT_Complete']), float(x['NT_Avg_Completeness'].rstrip('%'))/100), 
                                       reverse=True)
         for i, row in enumerate(summary_rows_nt_sorted):
-            report.append(f"{i+1}. {row['Genome']}: {row['NT_Complete']}/{row['NT_Total']} 完整核酸合成通路 (平均完整度: {row['NT_Avg_Completeness']})")
+            report.append(f"{i+1}. {row['Genome']}: {row['NT_Complete']}/{row['NT_Total']} complete nucleotide synthesis pathways (avg completeness: {row['NT_Avg_Completeness']})")
         
         report.append("")
-        report.append("ATP酶代谢通路能力排序:")
+        report.append("ATPase metabolic pathway capability ranking:")
         report.append("-" * 50)
         summary_rows_atp_sorted = sorted(summary_rows, 
                                        key=lambda x: (int(x['ATP_Complete']), float(x['ATP_Avg_Completeness'].rstrip('%'))/100), 
                                        reverse=True)
         for i, row in enumerate(summary_rows_atp_sorted):
-            report.append(f"{i+1}. {row['Genome']}: {row['ATP_Complete']}/{row['ATP_Total']} 完整ATP酶代谢通路 (平均完整度: {row['ATP_Avg_Completeness']})")
+            report.append(f"{i+1}. {row['Genome']}: {row['ATP_Complete']}/{row['ATP_Total']} complete ATPase metabolic pathways (avg completeness: {row['ATP_Avg_Completeness']})")
         
         report.append("")
-        report.append("详细结果:")
+        report.append("Detailed results:")
         report.append("-" * 50)
         for row in summary_rows_sorted:
             report.append(f"{row['Genome']}:")
-            report.append(f"  总通路数: {row['Total_Pathways']} (完整: {row['Complete_Pathways']})")
-            report.append(f"  氨基酸代谢: {row['AA_Total']} 个通路 (完整: {row['AA_Complete']}, 平均完整度: {row['AA_Avg_Completeness']})")
-            report.append(f"  维生素/辅酶: {row['VC_Total']} 个通路 (完整: {row['VC_Complete']}, 平均完整度: {row['VC_Avg_Completeness']})")
-            report.append(f"  核酸合成: {row['NT_Total']} 个通路 (完整: {row['NT_Complete']}, 平均完整度: {row['NT_Avg_Completeness']})")
-            report.append(f"  ATP酶代谢: {row['ATP_Total']} 个通路 (完整: {row['ATP_Complete']}, 平均完整度: {row['ATP_Avg_Completeness']})")
+            report.append(f"  Total pathways: {row['Total_Pathways']} (complete: {row['Complete_Pathways']})")
+            report.append(f"  Amino acid metabolism: {row['AA_Total']} pathways (complete: {row['AA_Complete']}, avg completeness: {row['AA_Avg_Completeness']})")
+            report.append(f"  Vitamin/coenzyme: {row['VC_Total']} pathways (complete: {row['VC_Complete']}, avg completeness: {row['VC_Avg_Completeness']})")
+            report.append(f"  Nucleotide synthesis: {row['NT_Total']} pathways (complete: {row['NT_Complete']}, avg completeness: {row['NT_Avg_Completeness']})")
+            report.append(f"  ATPase metabolism: {row['ATP_Total']} pathways (complete: {row['ATP_Complete']}, avg completeness: {row['ATP_Avg_Completeness']})")
             report.append("")
         
-        # 保存文本报告
+        # Save text report
         summary_report = os.path.join(output_dir, "batch_summary_report.txt")
         with open(summary_report, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report))
         
-        print(f"汇总表格已保存到: {summary_csv}")
-        print(f"汇总报告已保存到: {summary_report}")
+        print(f"Summary table saved to: {summary_csv}")
+        print(f"Summary report saved to: {summary_report}")

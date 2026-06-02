@@ -11,13 +11,13 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 try:
-    # 新版本Biopython (>=1.80) 使用gc_fraction
+    # New Biopython version (>=1.80) uses gc_fraction
     from Bio.SeqUtils import gc_fraction, molecular_weight
     def GC(sequence):
-        """兼容旧版本GC函数的包装器"""
+        """Wrapper for backward compatibility with old GC function"""
         return 100 * gc_fraction(sequence, ambiguous="ignore")
 except ImportError:
-    # 旧版本Biopython (<1.80) 使用GC
+    # Old Biopython version (<1.80) uses GC
     from Bio.SeqUtils import GC, molecular_weight
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
 

@@ -103,6 +103,20 @@ def comprehensive_command(input_path: str,
                 
                 if len(integrated['recommendations']) > 5:
                     print(f"  ... and {len(integrated['recommendations']) - 5} more (see detailed report)")
+            
+            # Print amino acid biosynthesis summary
+            aa_data = integrated.get('amino_acid_biosynthesis', {})
+            if aa_data:
+                aa_summary = aa_data.get('summary', {})
+                print(f"\nAmino Acid Biosynthesis (20 standard amino acids):")
+                print(f"  Present: {aa_summary.get('present', 0)}/20")
+                print(f"  Missing/Partial: {aa_summary.get('missing_or_partial', 0)}/20")
+                print(f"  No dedicated pathway in DB: {aa_summary.get('no_dedicated_pathway', 0)}/20")
+                
+                missing_list = aa_summary.get('missing_list', [])
+                if missing_list:
+                    missing_names = [aa.split(' (')[0] for aa in missing_list]
+                    print(f"  Missing: {', '.join(missing_names)}")
         
         print("\n" + "=" * 60)
         
@@ -163,12 +177,22 @@ def diamond_command(input_path: str,
         
         if 'summary' in results:
             summary = results['summary']
-            print(f"Total pathways detected: {summary.get('total_pathways', 0)}")
-            print(f"Methane pathways: {summary.get('methane_pathways', 0)}")
-            print(f"Sulfur pathways: {summary.get('sulfur_pathways', 0)}")
-            print(f"Nitrogen pathways: {summary.get('nitrogen_pathways', 0)}")
-            print(f"Salt tolerance hits: {summary.get('salt_tolerance_hits', 0)}")
-            print(f"Cultivability hits: {summary.get('cultivability_hits', 0)}")
+            pathway_results = results.get('pathway_results', {})
+            
+            # Count pathways by type
+            methane_count = sum(1 for db in pathway_results.keys() if db in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4', 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'])
+            sulfur_count = sum(1 for db in pathway_results.keys() if db in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
+            nitrogen_count = sum(1 for db in pathway_results.keys() if db in ['ANR', 'DEN', 'DNR', 'NIT'])
+            
+            salt_hits = pathway_results.get('NAIYAN', {}).get('salt_tolerance_hits', 0)
+            cult_hits = pathway_results.get('CULTIVATION', {}).get('cultivability_hits', 0)
+            
+            print(f"Total pathways detected: {summary.get('pathways_detected', 0)}")
+            print(f"Methane pathways: {methane_count}")
+            print(f"Sulfur pathways: {sulfur_count}")
+            print(f"Nitrogen pathways: {nitrogen_count}")
+            print(f"Salt tolerance hits: {salt_hits}")
+            print(f"Cultivability hits: {cult_hits}")
         
         print(f"\nAnalysis time: {analysis_time:.2f} seconds")
         print("=" * 60)

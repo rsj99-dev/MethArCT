@@ -116,7 +116,7 @@ For more information, visit: https://github.com/your-repo/MethArCT
         help='Run CheckM2 analysis for genome quality assessment',
         description='Assess genome quality and completeness using CheckM2'
     )
-    _add_checkm2_args(subparsers)
+    _add_checkm2_args(checkm2_parser)
     
     # Cultivation analysis command
     cultivation_parser = subparsers.add_parser(
@@ -124,7 +124,7 @@ For more information, visit: https://github.com/your-repo/MethArCT
         help='Run cultivation analysis for cultivability assessment',
         description='Assess cultivability based on metabolic pathways'
     )
-    _add_cultivation_args(subparsers)
+    _add_cultivation_args(cultivation_parser)
     
     return parser
 
@@ -227,19 +227,13 @@ def _add_tome_args(parser: argparse.ArgumentParser):
         help='Batch size for processing sequences (default: 100)'
     )
 
-def _add_cultivation_args(subparser):
+def _add_cultivation_args(parser: argparse.ArgumentParser):
     """
     Add arguments for cultivation command
     
     Args:
-        subparser: Subparser to add arguments to
+        parser: Parser to add arguments to
     """
-    parser = subparser.add_parser(
-        "cultivation",
-        help="Analyze cultivability based on metabolic pathways",
-        description="Analyze cultivability based on metabolic pathways"
-    )
-    
     parser.add_argument(
         "input",
         help="Path to input FASTA file"
@@ -285,19 +279,13 @@ def _add_cultivation_args(subparser):
         help="Cultivability score threshold (overrides config)"
     )
 
-def _add_checkm2_args(subparser):
+def _add_checkm2_args(parser: argparse.ArgumentParser):
     """
     Add arguments for checkm2 command
     
     Args:
-        subparser: Subparser to add arguments to
+        parser: Parser to add arguments to
     """
-    parser = subparser.add_parser(
-        "checkm2",
-        help="Run CheckM2 quality analysis",
-        description="Run CheckM2 quality analysis on genomes"
-    )
-    
     parser.add_argument(
         "input",
         help="Path to input FASTA file or directory"
