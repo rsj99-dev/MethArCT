@@ -31,9 +31,10 @@ class TomeAnalyzer:
 
         self.use_wsl = self.config.get('tools.tome.use_wsl', False)
 
+        # Search for Tome-1.1.0 in multiple candidate locations
         tome_install_dir = self.config.get('tools.tome.install_dir', None)
         if not tome_install_dir:
-            tome_install_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'Tome-1.1.0')
+            tome_install_dir = self._find_tome_install_dir()
 
         if tome_install_dir and os.path.exists(tome_install_dir):
             self.tome_script_path = os.path.join(tome_install_dir, 'tome', 'tome.py')
@@ -55,6 +56,29 @@ class TomeAnalyzer:
         FileUtils.ensure_dir(self.results_dir)
 
         self.tool_available = self._check_tome_availability()
+
+    @staticmethod
+    def _find_tome_install_dir() -> Optional[str]:
+        """Search for Tome-1.1.0 in multiple candidate locations."""
+        candidates = [
+            # 1. Relative to this module file (works for dev/editable installs)
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Tome-1.1.0'),
+            # 2. Relative to current working directory
+            os.path.join(os.getcwd(), 'Tome-1.1.0'),
+            # 3. Relative to the metharct_config.yaml (common project root)
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'Tome-1.1.0'),
+        ]
+        # Also check TOME_INSTALL_DIR environment variable
+        env_dir = os.environ.get('TOME_INSTALL_DIR')
+        if env_dir:
+            candidates.insert(0, env_dir)
+
+        for candidate in candidates:
+            candidate = os.path.normpath(candidate)
+            script = os.path.join(candidate, 'tome', 'tome.py')
+            if os.path.isfile(script):
+                return candidate
+        return None
 
     def _check_tome_availability(self) -> bool:
         try:
@@ -111,10 +135,17 @@ class TomeAnalyzer:
 
     def _try_direct_module_import(self) -> bool:
         try:
+            # If tome_install_dir is set and valid, add it to sys.path
             if self.tome_install_dir and os.path.exists(self.tome_install_dir):
-                tome_path = os.path.join(self.tome_install_dir, 'tome')
-                if tome_path not in sys.path:
+                if self.tome_install_dir not in sys.path:
                     sys.path.insert(0, self.tome_install_dir)
+            else:
+                # Try to find Tome-1.1.0 from known locations
+                found_dir = self._find_tome_install_dir()
+                if found_dir and found_dir not in sys.path:
+                    sys.path.insert(0, found_dir)
+                    self.tome_install_dir = found_dir
+
             import importlib
             self._tome_module = importlib.import_module('tome.tome')
             self.logger.info("Tome available via Python module API")
