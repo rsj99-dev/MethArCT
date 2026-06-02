@@ -4,6 +4,7 @@
 
 MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, salt tolerance, optimal growth temperature, and cultivability.
 Note: v0.2 currently has some bugs. If it doesn't work, please use v0.1.
+Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
 ## Key Features
 
