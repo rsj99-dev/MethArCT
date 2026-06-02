@@ -1,18 +1,18 @@
 tools:
   diamond:
-    path: "./diamond.exe"
+    path: "diamond"
     use_wsl: false
     threads: 4
     evalue: 1e-5
     max_target_seqs: 1
     identity_threshold: 30.0
-  
+
   tome:
-    path: "python_module"  # 使用Python模块而不是命令行工具
+    path: "python_module"
     wsl_path: "wsl tome"
     use_wsl: false
     threads: 4
-    
+
   checkm2:
     path: "checkm2"
     wsl_path: "wsl checkm2"
@@ -22,19 +22,19 @@ tools:
 databases:
   base_dir: "data/databases"
   pathway_names:
-    "CO2-CH4": "CO2还原产甲烷"
-    "JIAAN-CH4": "甲胺产甲烷"
-    "JIACHUN-CH4": "甲醇产甲烷"
-    "JIALIUCHUN-CH4": "甲硫醇产甲烷"
-    "JIASUAN-CH4": "甲酸产甲烷"
-    "JIAYANGJI-CH4": "甲氧基产甲烷"
-    "YISUAN-CH4": "乙酸产甲烷"
-    "C16-CH4": "长链脂肪酸产甲烷"
-    "CO-CH4": "CO产甲烷"
-    "甘氨酸甜菜碱产甲烷": "甘氨酸甜菜碱产甲烷"
-    "硫代丙酸甲酯产甲烷": "硫代丙酸甲酯产甲烷"
-    "四甲基铵产甲烷": "四甲基铵产甲烷"
-    "甲醇歧化产甲烷": "甲醇歧化产甲烷"
+    "CO2-CH4": "CO2 reduction methanogenesis"
+    "JIAAN-CH4": "Methylamine methanogenesis"
+    "JIACHUN-CH4": "Methanol methanogenesis"
+    "JIALIUCHUN-CH4": "Methanethiol methanogenesis"
+    "JIASUAN-CH4": "Formate methanogenesis"
+    "JIAYANGJI-CH4": "Methoxy methanogenesis"
+    "YISUAN-CH4": "Acetate methanogenesis"
+    "C16-CH4": "Long-chain fatty acid methanogenesis"
+    "CO-CH4": "CO methanogenesis"
+    "甘氨酸甜菜碱产甲烷": "Glycine betaine methanogenesis"
+    "硫代丙酸甲酯产甲烷": "Methylthiopropionate methanogenesis"
+    "四甲基铵产甲烷": "Tetramethylammonium methanogenesis"
+    "甲醇歧化产甲烷": "Methanol dismutation methanogenesis"
   methane_pathways:
     CO2-CH4: "methane/processed_CO2-CH4.fasta"
     JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
@@ -51,7 +51,7 @@ databases:
     甘氨酸甜菜碱产甲烷: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
     硫代丙酸甲酯产甲烷: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
     四甲基铵产甲烷: "methane/四甲基铵产甲烷.fasta"
-    甲醇歧化产甲烷: "methane/甲醇歧化产甲烷.fasta"  # 使用甲醇歧化产甲烷的专用参考序列
+    甲醇歧化产甲烷: "methane/甲醇歧化产甲烷.fasta"
   sulfur_pathways:
     ASR: "sulfur/Assimilatory sulfate reduction.fasta"
     SO: "sulfur/Sulfide oxidation.fasta"
@@ -73,10 +73,9 @@ databases:
     atp: "path_atp"
 
 reference_sequence_counts:
-    # 更新后的参考序列计数
-    JIASUAN-CH4: 18  # 甲酸产甲烷途径：原15个 + 新增elpA,elpB,elpC共3个
-    CO2-CH4: 15     # 二氧化碳产甲烷途径：原12个 + 新增elpA,elpB,elpC共3个
-    甘氨酸甜菜碱产甲烷: 3     # 甘氨酸甜菜碱产甲烷途径：MtgB、dimethylamine corrinoid protein 3、MV10360
+    JIASUAN-CH4: 18
+    CO2-CH4: 15
+    甘氨酸甜菜碱产甲烷: 3
     硫代丙酸甲酯产甲烷: 4
-    四甲基铵产甲烷: 3     # 四甲基铵产甲烷途径：MtqA/MT2、MtqB、MtqC
-    甲醇歧化产甲烷: 15     # 甲醇歧化产甲烷途径：使用与甲醇产甲烷相同的参考序列数
+    四甲基铵产甲烷: 3
+    甲醇歧化产甲烷: 15
