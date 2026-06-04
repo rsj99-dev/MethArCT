@@ -22,7 +22,7 @@ Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methard
 ### Basic Requirements
 - **Python**: 3.8
 - **Required Tool**: Diamond
-- **Operating System**: Windows, Linux, macOS
+- **Operating System**: Windows, Linux
 
 ### Optional Tools
 - **Tome**: For OGT prediction (optional)
