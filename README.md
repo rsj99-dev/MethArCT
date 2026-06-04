@@ -80,28 +80,6 @@ For temperature prediction or genome quality assessment features:
 Extract "checkm2_db.zip" to the root directory of the MethArCT folder.
 ```
 
-### Windows Users Special Note
-
-For Windows users experiencing compatibility issues with Tome and CheckM2, using WSL (Windows Subsystem for Linux) is recommended:
-
-1. **Install WSL2**:
-   ```powershell
-   wsl --install
-   ```
-
-2. **Install tools in WSL**:
-   ```bash
-   wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-   bash Miniconda3-latest-Linux-x86_64.sh
-   conda create -n bioinfo python=3.8
-   conda activate bioinfo
-   conda install -c bioconda diamond tome checkm2
-   ```
-
-3. **Configure project to use WSL**:
-   - See `example_wsl_usage.py` for reference
-   - Or specify WSL paths in config file
-
 ## Usage Guide
 
 ### 1. Command Line Usage (Recommended)
