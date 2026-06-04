@@ -56,7 +56,7 @@ Examples:
   # Verbose output
   metharct comprehensive input.fasta -o results -v
 
-For more information, visit: https://github.com/your-repo/MethArCT
+For more information, visit: https://github.com/rsj99-dev/MethArCT
 """
     )
     
@@ -76,7 +76,7 @@ For more information, visit: https://github.com/your-repo/MethArCT
     parser.add_argument(
         '--version',
         action='version',
-        version='MethArCT 0.2.0'
+        version='MethArCT 0.3.0'
     )
     
     # Create subparsers for different commands
