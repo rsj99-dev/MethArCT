@@ -1,4 +1,4 @@
-# MethArCT - Methanogenic Archaeal Culturomics Toolkit
+# MethArCT - Methanogenic Archaeal Culturomics Toolkit 龙芯版本
 
 ## 概述
 
