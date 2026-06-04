@@ -1,6 +1,10 @@
+# MethArCT 配置文件 (LoongArch64)
+# 使用方法: metharct analyze <input> --config metharct_config.yaml
+
 tools:
   diamond:
-    path: "diamond"
+    # 龙芯编译的 DIAMOND 路径，按实际安装位置修改
+    path: "./loongarch_install/bin/diamond"
     use_wsl: false
     threads: 4
     evalue: 1e-5
@@ -8,14 +12,14 @@ tools:
     identity_threshold: 30.0
 
   tome:
+    # Tome 为纯 Python，直接使用 python_module 模式
     path: "python_module"
-    wsl_path: "wsl tome"
     use_wsl: false
     threads: 4
 
   checkm2:
+    # CheckM2 需要从 conda 安装（龙芯支持情况视具体环境）
     path: "checkm2"
-    wsl_path: "wsl checkm2"
     use_wsl: false
     threads: 4
 
@@ -35,42 +39,6 @@ databases:
     "硫代丙酸甲酯产甲烷": "Methylthiopropionate methanogenesis"
     "四甲基铵产甲烷": "Tetramethylammonium methanogenesis"
     "甲醇歧化产甲烷": "Methanol dismutation methanogenesis"
-  methane_pathways:
-    CO2-CH4: "methane/processed_CO2-CH4.fasta"
-    JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
-    JIACHUN-CH4: "methane/processed_JIACHUN-CH4.fasta"
-    JIALIUCHUN-CH4: "methane/processed_JIALIUCHUN-CH4.fasta"
-    YISUAN-CH4: "methane/processed_YISUAN-CH4.fasta"
-    C16-CH4: "methane/processed_C16-CH4.fasta"
-    CO-CH4: "methane/processed_CO-CH4.fasta"
-    JIASUAN-CH4: "methane/processed_JIASUAN-CH4.fasta"
-    JIAYANGJI-CH4: "methane/processed_JIAYANGJI-CH4.fasta"
-    ZHIFANGSUAN-CH4: "methane/processed_ZHIFANGSUAN-CH4.fasta"
-    2JIAAN-CH4: "methane/processed_2JIAAN-CH4.fasta"
-    3JIAAN-CH4: "methane/processed_3JIAAN-CH4.fasta"
-    甘氨酸甜菜碱产甲烷: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
-    硫代丙酸甲酯产甲烷: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
-    四甲基铵产甲烷: "methane/四甲基铵产甲烷.fasta"
-    甲醇歧化产甲烷: "methane/甲醇歧化产甲烷.fasta"
-  sulfur_pathways:
-    ASR: "sulfur/Assimilatory sulfate reduction.fasta"
-    SO: "sulfur/Sulfide oxidation.fasta"
-    SOX: "sulfur/Sulfur oxidation, SOX system.fasta"
-    S4I: "sulfur/Sulfur oxidation, tetrathionate intermediate (S4I) pathway.fasta"
-    SR: "sulfur/Sulfur reduction.fasta"
-    DSR: "sulfur/Dissimilatory sulfate reduction.fasta"
-  nitrogen_pathways:
-    ANR: "nitrogen/Assimilatory nitrate reduction.fasta"
-    DEN: "nitrogen/Denitrification.fasta"
-    DNR: "nitrogen/Dissimilatory nitrate reduction.fasta"
-    NIT: "nitrogen/Nitrification.fasta"
-  salt_tolerance: "salt/naiyan_data.fasta"
-  cultivation:
-    base_dir: "cultivation"
-    amino_acids: "path.aa"
-    vitamins: "path.vc"
-    nucleotides: "path_hesuan"
-    atp: "path_atp"
 
 reference_sequence_counts:
     JIASUAN-CH4: 18

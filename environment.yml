@@ -1,3 +1,7 @@
+# MethArCT Conda 环境配置 (LoongArch64)
+# 使用方法: conda env create -f environment.yml
+# 注意: 需要安装 loongarch 版本的 conda/miniconda
+
 name: metharct
 channels:
   - conda-forge
@@ -7,24 +11,24 @@ dependencies:
   - python>=3.9
   - pip
 
-  # Bioinformatics tools
-  - diamond>=2.0.0
-  - checkm2
-
-  # Scientific computing
+  # 科学计算 - conda-forge 已支持 loongarch64
   - numpy>=1.21.0
   - pandas>=1.3.0
   - scipy>=1.7.0
   - scikit-learn>=1.0.0
 
-  # Bioinformatics libraries
+  # 生物信息学
   - biopython>=1.79
 
-  # System utilities
-  - wget
-  - curl
+  # 系统工具
+  - cmake>=3.20     # DIAMOND 编译需要
+  - gcc>=12         # C/C++ 编译器
+  - gxx>=12         # C++ 编译器
+  - make
+  - zlib
+  - bzip2
 
-  # pip dependencies
+  # pip 依赖
   - pip:
     - tqdm>=4.60.0
     - pyyaml>=5.4
