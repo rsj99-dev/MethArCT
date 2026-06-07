@@ -22,7 +22,8 @@ try:
         diamond_command,
         tome_command,
         checkm2_command,
-        comprehensive_command
+        comprehensive_command,
+        susha_command
     )
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -48,6 +49,7 @@ Examples:
   # Individual analyses
   metharct diamond input.fasta -o diamond_results
   metharct tome input.fasta -o tome_results
+  metharct susha input.fasta -o susha_results
   metharct checkm2 input.fasta -o checkm2_results
   
   # With custom configuration
@@ -89,16 +91,16 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     # Comprehensive analysis command
     comprehensive_parser = subparsers.add_parser(
         'comprehensive',
-        help='Run comprehensive analysis (Diamond + Tome + CheckM2)',
-        description='Perform comprehensive metabolic pathway prediction, temperature analysis, and genome quality assessment'
+        help='Run comprehensive analysis (Diamond + Tome + SuSha + CheckM2)',
+        description='Perform comprehensive metabolic pathway prediction, temperature analysis, salinity prediction, and genome quality assessment'
     )
     _add_comprehensive_args(comprehensive_parser)
     
     # Diamond analysis command
     diamond_parser = subparsers.add_parser(
         'diamond',
-        help='Run Diamond analysis for metabolic pathways and salt tolerance',
-        description='Analyze metabolic pathways, salt tolerance, and cultivability using Diamond BLAST'
+        help='Run Diamond analysis for metabolic pathways and cultivability',
+        description='Analyze metabolic pathways and cultivability using Diamond BLAST'
     )
     _add_diamond_args(diamond_parser)
     
@@ -125,6 +127,14 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         description='Assess cultivability based on metabolic pathways'
     )
     _add_cultivation_args(cultivation_parser)
+    
+    # SuSha salinity prediction command
+    susha_parser = subparsers.add_parser(
+        'susha',
+        help='Run SuSha salinity adaptation prediction',
+        description='Predict microbial salinity adaptation using SuSha ensemble learning model'
+    )
+    _add_susha_args(susha_parser)
     
     return parser
 
@@ -153,6 +163,12 @@ def _add_comprehensive_args(parser: argparse.ArgumentParser):
         '--skip-checkm2',
         action='store_true',
         help='Skip CheckM2 genome quality analysis'
+    )
+    
+    parser.add_argument(
+        '--skip-susha',
+        action='store_true',
+        help='Skip SuSha salinity prediction'
     )
     
     parser.add_argument(
@@ -277,6 +293,21 @@ def _add_cultivation_args(parser: argparse.ArgumentParser):
         "--cultivability-threshold",
         type=float,
         help="Cultivability score threshold (overrides config)"
+    )
+
+def _add_susha_args(parser: argparse.ArgumentParser):
+    """Add arguments for SuSha salinity prediction command"""
+    parser.add_argument(
+        'input',
+        type=str,
+        help='Input FASTA file path (protein sequences)'
+    )
+    
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        required=True,
+        help='Output file prefix'
     )
 
 def _add_checkm2_args(parser: argparse.ArgumentParser):
@@ -474,7 +505,8 @@ def main():
                     output_prefix=output_prefix,
                     config=config,
                     skip_tome=args.skip_tome,
-                    skip_checkm2=args.skip_checkm2
+                    skip_checkm2=args.skip_checkm2,
+                    skip_susha=getattr(args, 'skip_susha', False)
                 )
             
             elif args.command == 'diamond':
@@ -523,6 +555,13 @@ def main():
                     config.set('cultivation.cultivability_threshold', args.cultivability_threshold)
                 
                 cultivation_command(
+                    input_path=str(input_path),
+                    output_prefix=output_prefix,
+                    config=config
+                )
+            
+            elif args.command == 'susha':
+                susha_command(
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config

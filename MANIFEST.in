@@ -11,6 +11,7 @@ include environment.yml
 recursive-include metharct *.py
 recursive-include metharct *.yaml
 recursive-include metharct *.yml
+recursive-include metharct/core/susha/models *.pkl
 
 # Exclude cache and compiled files
 global-exclude __pycache__

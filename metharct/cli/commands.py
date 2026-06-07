@@ -19,7 +19,8 @@ from metharct.core import (
     TomeAnalyzer,
     CheckM2Analyzer,
     PathwayPredictor,
-    CultivationAnalyzer
+    CultivationAnalyzer,
+    SuShaAnalyzer
 )
 from metharct.utils.config import Config
 from metharct.utils.logger import get_logger
@@ -29,7 +30,8 @@ def comprehensive_command(input_path: str,
                          output_prefix: str,
                          config: Config,
                          skip_tome: bool = False,
-                         skip_checkm2: bool = False):
+                         skip_checkm2: bool = False,
+                         skip_susha: bool = False):
     """
     Run comprehensive analysis command
     
@@ -39,6 +41,7 @@ def comprehensive_command(input_path: str,
         config: Configuration object
         skip_tome: Skip Tome analysis
         skip_checkm2: Skip CheckM2 analysis
+        skip_susha: Skip SuSha salinity prediction
     """
     logger = get_logger("comprehensive_command")
     
@@ -49,6 +52,7 @@ def comprehensive_command(input_path: str,
     print(f"Output prefix: {output_prefix}")
     print(f"Skip Tome: {skip_tome}")
     print(f"Skip CheckM2: {skip_checkm2}")
+    print(f"Skip SuSha: {skip_susha}")
     print("=" * 60 + "\n")
     
     try:
@@ -70,7 +74,8 @@ def comprehensive_command(input_path: str,
             input_path=input_path,
             output_prefix=output_prefix,
             include_tome=not skip_tome,
-            include_checkm2=not skip_checkm2
+            include_checkm2=not skip_checkm2,
+            include_susha=not skip_susha
         )
         
         end_time = time.time()
@@ -184,14 +189,12 @@ def diamond_command(input_path: str,
             sulfur_count = sum(1 for db in pathway_results.keys() if db in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
             nitrogen_count = sum(1 for db in pathway_results.keys() if db in ['ANR', 'DEN', 'DNR', 'NIT'])
             
-            salt_hits = pathway_results.get('NAIYAN', {}).get('salt_tolerance_hits', 0)
             cult_hits = pathway_results.get('CULTIVATION', {}).get('cultivability_hits', 0)
             
             print(f"Total pathways detected: {summary.get('pathways_detected', 0)}")
             print(f"Methane pathways: {methane_count}")
             print(f"Sulfur pathways: {sulfur_count}")
             print(f"Nitrogen pathways: {nitrogen_count}")
-            print(f"Salt tolerance hits: {salt_hits}")
             print(f"Cultivability hits: {cult_hits}")
         
         print(f"\nAnalysis time: {analysis_time:.2f} seconds")
@@ -511,3 +514,78 @@ def print_file_info(file_path: str):
         
     except Exception as e:
         print(f"Could not read file info: {str(e)}")
+
+
+def susha_command(input_path: str,
+                  output_prefix: str,
+                  config: Config):
+    """
+    Run SuSha salinity adaptation prediction
+    
+    Args:
+        input_path: Path to input FASTA file
+        output_prefix: Output file prefix
+        config: Configuration object
+    """
+    logger = get_logger("susha_command")
+    
+    print("\n" + "=" * 60)
+    print("MethArCT SuSha Salinity Prediction")
+    print("=" * 60)
+    print(f"Input file: {input_path}")
+    print(f"Output prefix: {output_prefix}")
+    print("=" * 60 + "\n")
+    
+    try:
+        # Validate input file
+        if not FileUtils.validate_fasta(input_path):
+            raise ValueError(f"Invalid FASTA file: {input_path}")
+        
+        # Initialize analyzer
+        analyzer = SuShaAnalyzer(config)
+        
+        if not analyzer.tool_available:
+            raise RuntimeError("SuSha module is not available. Please ensure 'shap' and 'openpyxl' are installed.")
+        
+        # Start analysis
+        start_time = time.time()
+        print("Starting SuSha salinity prediction...")
+        
+        results = analyzer.predict_salinity(
+            input_file=input_path,
+            output_prefix=output_prefix
+        )
+        
+        end_time = time.time()
+        analysis_time = end_time - start_time
+        
+        # Print summary
+        print("\n" + "=" * 60)
+        print("SuSha Prediction Summary")
+        print("=" * 60)
+        
+        if results.get('status') == 'success':
+            prediction = results.get('prediction', {})
+            print(f"Predicted salinity: {prediction.get('salinity_label', 'Unknown')}")
+            print(f"Confidence: {prediction.get('confidence', 0):.2%}")
+            
+            top3 = results.get('top3_predictions', [])
+            if top3:
+                print("\nTop 3 predictions:")
+                for t in top3:
+                    print(f"  {t['rank']}. {t['label']}: {t['probability']:.2%}")
+            
+            output_files = results.get('output_files', {})
+            if output_files.get('tsv'):
+                print(f"\nResults saved to: {output_files['tsv']}")
+        else:
+            print(f"Prediction failed: {results.get('error', 'Unknown error')}")
+        
+        print(f"\nAnalysis time: {analysis_time:.2f} seconds")
+        print("=" * 60)
+        
+        logger.info(f"SuSha prediction completed in {analysis_time:.2f} seconds")
+        
+    except Exception as e:
+        logger.error(f"SuSha prediction failed: {str(e)}")
+        raise

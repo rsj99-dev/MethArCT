@@ -19,6 +19,9 @@ tools:
     use_wsl: false
     threads: 4
 
+  susha:
+    enabled: true
+
 databases:
   base_dir: "data/databases"
   pathway_names:
@@ -64,7 +67,6 @@ databases:
     DEN: "nitrogen/Denitrification.fasta"
     DNR: "nitrogen/Dissimilatory nitrate reduction.fasta"
     NIT: "nitrogen/Nitrification.fasta"
-  salt_tolerance: "salt/naiyan_data.fasta"
   cultivation:
     base_dir: "cultivation"
     amino_acids: "path.aa"

@@ -3,8 +3,8 @@
 """
 Diamond sequence alignment analyzer for MethArCT
 
-Performs protein sequence alignment using Diamond BLAST for metabolic pathway prediction,
-salt tolerance assessment, and cultivability evaluation.
+Performs protein sequence alignment using Diamond BLAST for metabolic pathway prediction
+and cultivability evaluation.
 """
 
 import os
@@ -50,10 +50,6 @@ class DiamondAnalyzer:
         # Cultivability assessment thresholds
         self.CULTIVABILITY_E_VALUE_THRESHOLD = 1e-3
         self.CULTIVABILITY_BITSCORE_THRESHOLD = 50
-        
-        # Salt tolerance assessment thresholds
-        self.SALT_TOLERANCE_E_VALUE_THRESHOLD = 1e-5  # Use diamond default threshold
-        self.SALT_TOLERANCE_BITSCORE_THRESHOLD = 100    # Use diamond default value (no bitscore filtering)
         
         # Database paths
         self.db_base_dir = self.config.get('databases.base_dir', 'data/databases')
@@ -260,8 +256,6 @@ class DiamondAnalyzer:
         # Select E-value threshold based on database type
         if db_name == 'CULTIVATION':
             search_evalue = self.CULTIVABILITY_E_VALUE_THRESHOLD
-        elif db_name == 'NAIYAN':
-            search_evalue = self.SALT_TOLERANCE_E_VALUE_THRESHOLD
         else:
             search_evalue = self.LOW_E_VALUE_THRESHOLD
         
@@ -315,20 +309,6 @@ class DiamondAnalyzer:
                             'output_file': output_file
                         }
                     
-                    elif db_name == 'NAIYAN':
-                        # Salt tolerance database only performs salt tolerance filtering
-                        salt_tolerance_hits = df[
-                            (df['evalue'] <= self.SALT_TOLERANCE_E_VALUE_THRESHOLD) & 
-                            (df['bitscore'] >= self.SALT_TOLERANCE_BITSCORE_THRESHOLD)
-                        ]
-                        
-                        return {
-                            'database': db_name,
-                            'total_hits': len(df),
-                            'salt_tolerance_hits': salt_tolerance_hits,
-                            'output_file': output_file
-                        }
-                    
                     else:
                         # Metabolic pathway database performs dual threshold filtering
                         # Check if it's a methane metabolism pathway, if so use single threshold analysis
@@ -377,13 +357,6 @@ class DiamondAnalyzer:
                             'database': db_name,
                             'total_hits': 0,
                             'cultivability_hits': pd.DataFrame(),
-                            'output_file': output_file
-                        }
-                    elif db_name == 'NAIYAN':
-                        return {
-                            'database': db_name,
-                            'total_hits': 0,
-                            'salt_tolerance_hits': pd.DataFrame(),
                             'output_file': output_file
                         }
                     else:
@@ -457,33 +430,6 @@ class DiamondAnalyzer:
                             result['cultivability_hits']['pident'].mean(), 2
                         ) if len(result['cultivability_hits']) > 0 else 0,
                         'best_hits': result['cultivability_hits'].nlargest(5, 'bitscore').to_dict('records')
-                    }
-                    
-                elif db_name == 'NAIYAN':
-                    # Salt tolerance database processing
-                    # Calculate how many different query sequences matched salt tolerance-related genes (deduplicated)
-                    salt_tolerance_matched = len(result['salt_tolerance_hits']['qseqid'].drop_duplicates())
-                    
-                    if 0 <= salt_tolerance_matched <= 2:
-                        salt_tolerance_level = "No Resistance"
-                    elif 3 <= salt_tolerance_matched <= 5:
-                        salt_tolerance_level = "Moderate"
-                    elif 6 <= salt_tolerance_matched <= 8:
-                        salt_tolerance_level = "Strong"
-                    elif salt_tolerance_matched >= 9:
-                        salt_tolerance_level = "Very Strong"
-                    else:
-                        salt_tolerance_level = "Unknown"
-                    
-                    pathway_results[db_name] = {
-                        'pathway_name': self.pathway_names.get(db_name, db_name),
-                        'reference_sequences': reference_count,
-                        'salt_tolerance_hits': salt_tolerance_matched,
-                        'salt_tolerance_level': salt_tolerance_level,
-                        'average_identity': round(
-                            result['salt_tolerance_hits']['pident'].mean(), 2
-                        ) if len(result['salt_tolerance_hits']) > 0 else 0,
-                        'best_hits': result['salt_tolerance_hits'].nlargest(5, 'bitscore').to_dict('records')
                     }
                     
                 else:
@@ -930,10 +876,7 @@ class DiamondAnalyzer:
                 if 'low_threshold_hits' in result:
                     summary_stats['total_hits'] += len(result['low_threshold_hits'])
                 elif 'cultivability_hits' in result:
-                    summary_stats['total_hits'] += len(result['cultivability_hits'])
-                elif 'salt_tolerance_hits' in result:
-                    summary_stats['total_hits'] += len(result['salt_tolerance_hits'])
-        
+                    pass
         return {
             'input_file': str(input_file),
             'analysis_timestamp': pd.Timestamp.now().isoformat(),
@@ -966,7 +909,7 @@ class DiamondAnalyzer:
             for db_name, raw_data in serializable_results['raw_results'].items():
                 if raw_data:
                     # Convert DataFrame to list of dictionaries
-                    for key in ['high_threshold_hits', 'low_threshold_hits', 'cultivability_hits', 'salt_tolerance_hits']:
+                    for key in ['high_threshold_hits', 'low_threshold_hits', 'cultivability_hits']:
                         if key in raw_data and hasattr(raw_data[key], 'to_dict'):
                             raw_data[key] = raw_data[key].to_dict('records')
         
@@ -996,8 +939,6 @@ class DiamondAnalyzer:
                 pathway_type = 'Nitrogen'
             elif db_name == 'CULTIVATION':
                 pathway_type = 'Cultivation'
-            elif db_name == 'NAIYAN':
-                pathway_type = 'Salt_Tolerance'
             
             # Extract corresponding data based on metabolic pathway type
             if pathway_type == 'Methane':
@@ -1046,20 +987,6 @@ class DiamondAnalyzer:
                     'Cultivability_Status': pathway_data.get('cultivability_status', ''),
                     'Average_Identity': pathway_data.get('average_identity', 0),
                     'Detection_Status': 'Detected' if pathway_data.get('cultivability_hits', 0) > 0 else 'Not Detected'
-                })
-            elif pathway_type == 'Salt_Tolerance':
-                # Salt tolerance assessment
-                summary_data.append({
-                    'Input_File': input_file,
-                    'Analysis_Timestamp': analysis_timestamp,
-                    'Pathway_Type': pathway_type,
-                    'Database': db_name,
-                    'Pathway_Name': pathway_data['pathway_name'],
-                    'Reference_Sequences': pathway_data['reference_sequences'],
-                    'Salt_Tolerance_Hits': pathway_data.get('salt_tolerance_hits', 0),
-                    'Salt_Tolerance_Level': pathway_data.get('salt_tolerance_level', ''),
-                    'Average_Identity': pathway_data.get('average_identity', 0),
-                    'Detection_Status': 'Detected' if pathway_data.get('salt_tolerance_hits', 0) > 0 else 'Not Detected'
                 })
         
         if summary_data:

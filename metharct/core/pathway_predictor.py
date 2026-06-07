@@ -18,6 +18,7 @@ from ..utils.file_utils import FileUtils
 from .diamond_analyzer import DiamondAnalyzer
 from .cultivation_analyzer import CultivationAnalyzer
 from .tome_analyzer import TomeAnalyzer
+from .susha_analyzer import SuShaAnalyzer
 from .checkm2_analyzer import CheckM2Analyzer
 
 class PathwayPredictor:
@@ -31,6 +32,7 @@ class PathwayPredictor:
         self.diamond_analyzer = DiamondAnalyzer(self.config)
         self.cultivation_analyzer = CultivationAnalyzer(self.config.config)
         self.tome_analyzer = TomeAnalyzer(self.config)
+        self.susha_analyzer = SuShaAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
         
         # Results directory
@@ -49,7 +51,8 @@ class PathwayPredictor:
                             output_prefix: Optional[str] = None,
                             include_tome: bool = True,
                             include_checkm2: bool = True,
-                            include_cultivation: bool = True) -> Dict[str, any]:
+                            include_cultivation: bool = True,
+                            include_susha: bool = True) -> Dict[str, any]:
         """
         Perform comprehensive pathway prediction analysis
         
@@ -59,6 +62,7 @@ class PathwayPredictor:
             include_tome: Whether to include Tome analysis
             include_checkm2: Whether to include CheckM2 analysis
             include_cultivation: Whether to include Cultivation analysis
+            include_susha: Whether to include SuSha salinity prediction
             
         Returns:
             Comprehensive analysis results
@@ -83,7 +87,7 @@ class PathwayPredictor:
             'results': {}
         }
         
-        # 1. Diamond analysis (metabolic pathways, salt tolerance, cultivability)
+        # 1. Diamond analysis (metabolic pathways, cultivability)
         try:
             self.logger.info("Running Diamond analysis...")
             diamond_results = self.diamond_analyzer.analyze_sequence(
@@ -154,7 +158,28 @@ class PathwayPredictor:
                     'error': str(e)
                 }
         
-        # 3. CheckM2 analysis (genome quality and cultivability)
+        # 3. SuSha analysis (salinity adaptation)
+        if include_susha:
+            try:
+                self.logger.info("Running SuSha salinity prediction...")
+                susha_results = self.susha_analyzer.predict_salinity(
+                    input_file=input_path, output_prefix=output_prefix
+                )
+                if susha_results.get('status') != 'failed':
+                    comprehensive_results['analyses_performed'].append('susha')
+                    comprehensive_results['results']['susha'] = susha_results
+                    self.logger.info("SuSha analysis completed")
+                else:
+                    comprehensive_results['results']['susha'] = susha_results
+                    self.logger.warning(f"SuSha analysis failed: {susha_results.get('error')}")
+            except Exception as e:
+                self.logger.error(f"SuSha analysis failed: {str(e)}")
+                comprehensive_results['results']['susha'] = {
+                    'status': 'failed',
+                    'error': str(e)
+                }
+        
+        # 4. CheckM2 analysis (genome quality and cultivability)
         if include_checkm2:
             try:
                 self.logger.info("Running CheckM2 analysis...")
@@ -171,7 +196,7 @@ class PathwayPredictor:
                     'error': str(e)
                 }
         
-        # 4. Integrate results
+        # 5. Integrate results
         try:
             integrated_results = self._integrate_results(comprehensive_results['results'])
             comprehensive_results['integrated_analysis'] = integrated_results
@@ -183,7 +208,7 @@ class PathwayPredictor:
                 'error': str(e)
             }
         
-        # 5. Save comprehensive results
+        # 6. Save comprehensive results
         self._save_comprehensive_results(comprehensive_results, output_prefix)
         
         return comprehensive_results
@@ -215,11 +240,6 @@ class PathwayPredictor:
                 integrated['metabolic_profile'] = self._process_metabolic_pathways(
                     diamond_data['pathway_analysis']
                 )
-            
-            # Salt tolerance
-            if 'salt_tolerance' in diamond_data:
-                integrated['environmental_adaptation']['salt_tolerance'] = \
-                    diamond_data['salt_tolerance']
         
         # Process Tome results
         if 'tome' in analysis_results and 'status' not in analysis_results['tome']:
@@ -228,6 +248,17 @@ class PathwayPredictor:
             if 'temperature_predictions' in tome_data:
                 integrated['environmental_adaptation']['temperature'] = \
                     self._process_temperature_data(tome_data['temperature_predictions'])
+        
+        # Process SuSha results
+        if 'susha' in analysis_results and analysis_results['susha'].get('status') != 'failed':
+            susha_data = analysis_results['susha']
+            prediction = susha_data.get('prediction', {})
+            integrated['environmental_adaptation']['salinity'] = {
+                'predicted_label': prediction.get('salinity_label', 'Unknown'),
+                'salinity_index': prediction.get('salinity_index', -1),
+                'confidence': prediction.get('confidence', 0),
+                'top3_predictions': susha_data.get('top3_predictions', []),
+            }
         
         # Process CheckM2 results
         if 'checkm2' in analysis_results and 'status' not in analysis_results['checkm2']:
@@ -496,11 +527,14 @@ class PathwayPredictor:
             assessment['environmental_adaptation'] = 'psychrophilic'
             assessment['key_characteristics'].append('Cold adaptation')
         
-        # Salt tolerance
-        salt_tolerance = env_adaptation.get('salt_tolerance', {})
-        if salt_tolerance.get('tolerance_level') == 'high':
+        # Salinity adaptation
+        salinity_data = env_adaptation.get('salinity', {})
+        salinity_label = salinity_data.get('predicted_label', '')
+        if salinity_label in ('Moderate halophilic', 'Extreme halophilic'):
             assessment['environmental_adaptation'] = 'halophilic'
-            assessment['key_characteristics'].append('High salt tolerance')
+            assessment['key_characteristics'].append(f'Salinity: {salinity_label}')
+        elif salinity_label == 'Halotolerant':
+            assessment['key_characteristics'].append('Salinity: Halotolerant')
         
         # Cultivation potential
         cultivability = integrated_data.get('cultivability_assessment', {})
@@ -558,12 +592,19 @@ class PathwayPredictor:
             if temp_assessment.get('special_requirements'):
                 recommendations.append(temp_assessment['special_requirements'])
         
-        # Salt tolerance recommendations
-        salt_tolerance = env_adaptation.get('salt_tolerance', {})
-        if salt_tolerance.get('tolerance_level') == 'high':
-            recommendations.append("Use high-salt media for cultivation")
-        elif salt_tolerance.get('tolerance_level') == 'low':
-            recommendations.append("Use low-salt or freshwater media")
+        # Salinity recommendations
+        salinity_data = env_adaptation.get('salinity', {})
+        salinity_label = salinity_data.get('predicted_label', '')
+        if salinity_label == 'Extreme halophilic':
+            recommendations.append("Use high-salt media (15-30% NaCl) for cultivation")
+        elif salinity_label == 'Moderate halophilic':
+            recommendations.append("Use moderate-salt media (5-15% NaCl) for cultivation")
+        elif salinity_label == 'Slight halophilic':
+            recommendations.append("Use low-salt media (2-5% NaCl) for cultivation")
+        elif salinity_label == 'Halotolerant':
+            recommendations.append("Organism is halotolerant - standard to low-salt media suitable")
+        elif salinity_label == 'Salt-sensitive':
+            recommendations.append("Use salt-free or very low-salt media for cultivation")
         
         # Metabolic recommendations
         metabolic_profile = integrated_data.get('metabolic_profile', {})
@@ -696,12 +737,21 @@ class PathwayPredictor:
                             summary = analysis_data['summary']
                             f.write(f"  Total pathways detected: {summary.get('total_pathways', 0)}\n")
                             f.write(f"  Methane pathways: {summary.get('methane_pathways', 0)}\n")
-                            f.write(f"  Salt tolerance hits: {summary.get('salt_tolerance_hits', 0)}\n")
                         
                         elif analysis_type == 'tome' and 'summary' in analysis_data:
                             summary = analysis_data['summary']
                             f.write(f"  Average OGT: {summary.get('average_ogt', 0):.1f}°C\n")
                             f.write(f"  Temperature category: {summary.get('temperature_category', 'Unknown')}\n")
+                        
+                        elif analysis_type == 'susha':
+                            susha_pred = analysis_data.get('prediction', {})
+                            f.write(f"  Predicted salinity: {susha_pred.get('salinity_label', 'Unknown')}\n")
+                            f.write(f"  Confidence: {susha_pred.get('confidence', 0):.2%}\n")
+                            top3 = analysis_data.get('top3_predictions', [])
+                            if top3:
+                                f.write("  Top 3 predictions:\n")
+                                for t in top3:
+                                    f.write(f"    {t['rank']}. {t['label']}: {t['probability']:.2%}\n")
                         
                         elif analysis_type == 'checkm2' and 'summary' in analysis_data:
                             summary = analysis_data['summary']

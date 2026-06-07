@@ -2,7 +2,7 @@
 
 ## Overview
 
-MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, salt tolerance, optimal growth temperature, and cultivability.
+MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, and cultivability.
 
 Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
@@ -10,10 +10,10 @@ Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methard
 
 ### Core Features (Required)
 - **Metabolic Pathway Prediction**: Analysis of methane, sulfur, and nitrogen metabolic pathways (21 pathways) based on Diamond tool
-- **Salt Tolerance Assessment**: Prediction of salt tolerance based on gene databases
 - **Cultivability Assessment**: Evaluation of culture difficulty based on metabolic pathways
 
 ### Extended Features (Optional)
+- **Salinity Prediction**: Microbial salinity adaptation prediction based on amino acid composition features using SuSha ensemble learning model
 - **Temperature Prediction**: Optimal Growth Temperature (OGT) prediction - requires Tome tool
 - **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 - requires CheckM2 tool
 
@@ -99,7 +99,8 @@ metharct comprehensive "protein.faa" -o results/ --skip-tome --skip-checkm2
 metharct comprehensive "protein.faa" -o results/
 
 # Run optional analyses separately
-metharct tome "protein.faa" -o results/        # Requires Tome
+metharct susha "protein.faa" -o results/         # Salinity prediction
+metharct tome "protein.faa" -o results/          # Requires Tome
 metharct checkm2 "genome.fasta" -o results/      # Requires CheckM2
 ```
 
@@ -137,6 +138,7 @@ print(results)
 - `[filename]_comprehensive_analysis.json` - Complete analysis data
 
 **Optional Feature Output**:
+- SuSha salinity results: `[filename]_SuSha_Summary.tsv` and `[filename]_SuSha_Result.xlsx`
 - Tome results in `[filename]_tome/` directory
 - CheckM2 results in `[filename]_checkm2/` directory with `quality_report.tsv`
 
@@ -186,13 +188,14 @@ MethArCT/
 ├── metharct/              # Main package
 │   ├── cli/               # Command line interface
 │   ├── core/               # Core analysis modules
+│   │   └── susha/          # SuSha salinity prediction (embedded)
 │   └── utils/              # Utility functions
+├── Tome-1.1.0/            # Tome OGT prediction module
 ├── data/                  # Reference databases
 │   ├── databases/          # Diamond databases
 │   ├── methane/            # Methane metabolism genes
 │   ├── nitrogen/            # Nitrogen metabolism genes
 │   ├── sulfur/              # Sulfur metabolism genes
-│   └── salt/                # Salt tolerance genes
 ├── example_usage.py       # Usage examples
 ├── example_wsl_usage.py   # WSL usage examples
 ├── requirements.txt       # Python dependencies

@@ -35,7 +35,7 @@ def read_requirements():
 
 # Get version information
 def get_version():
-    # For this release, version is hardcoded to 0.3.0
+    # For this release, version is hardcoded to 0.4.0
     # Original dynamic read is commented out below
     # version_file = os.path.join("metharct", "__init__.py")
     # if os.path.exists(version_file):
@@ -43,7 +43,7 @@ def get_version():
     #         for line in f:
     #             if line.startswith("__version__"):
     #                 return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.3.0"
+    return "0.4.0"
 
 setup(
     name="metharct",
@@ -55,9 +55,9 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/MethArCT/metharct",
     project_urls={
-        "Bug Reports": "https://github.com/MethArCT/metharct/issues",
-        "Source": "https://github.com/MethArCT/metharct",
-        "Documentation": "https://metharct.readthedocs.io",
+        "Bug Reports": "https://github.com/rsj99-dev/MethArCT/issues",
+        "Source": "https://github.com/rsj99-dev/MethArCT",
+        "Documentation": "https://github.com/rsj99-dev/MethArCT",
     },
     packages=find_packages(include=['metharct', 'metharct.*']),
     classifiers=[
@@ -103,6 +103,7 @@ setup(
     package_data={
         "metharct": [
             "data/databases/**/*",
+            "core/susha/models/*.pkl",
             "*.yaml",
             "*.yml",
         ],
@@ -118,8 +119,10 @@ setup(
         "diamond",
         "genome analysis",
         "temperature prediction",
+        "salinity prediction",
         "checkm2",
         "tome",
+        "susha",
     ],
     zip_safe=False,
 )

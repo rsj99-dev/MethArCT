@@ -46,6 +46,9 @@ class Config:
                     'wsl_path': 'wsl checkm2',
                     'use_wsl': False,
                     'threads': 4
+                },
+                'susha': {
+                    'enabled': True
                 }
             },
             'databases': {
@@ -82,7 +85,6 @@ class Config:
                     'DNR': 'nitrogen/Dissimilatory nitrate reduction.fasta',
                     'NIT': 'nitrogen/Nitrification.fasta'
                 },
-                'salt_tolerance': 'salt/naiyan_data.fasta',
                 'cultivation_pathways': {
                     'amino_acid': 'cultivation/path.aa',
                     'vitamin': 'cultivation/path.vc',
@@ -121,7 +123,6 @@ class Config:
                 'DNR': 'Dissimilatory nitrate reduction pathway',
                 'NIT': 'Nitrification pathway',
                 # Others
-                'NAIYAN': 'Salt tolerance characteristics',
                 'CULTIVATION': 'Cultivation assessment'
             },
             'reference_sequence_counts': {
@@ -155,7 +156,6 @@ class Config:
                 'DNR': 9,
                 'NIT': 4,
                 # Others
-                'NAIYAN': 15,
                 'CULTIVATION': 14192
             },
             'cultivation': {
@@ -246,8 +246,6 @@ class Config:
             rel_path = self.get(f'databases.sulfur_pathways.{db_name}')
         elif db_type == 'nitrogen':
             rel_path = self.get(f'databases.nitrogen_pathways.{db_name}')
-        elif db_type == 'salt':
-            rel_path = self.get('databases.salt_tolerance')
         elif db_type == 'cultivation':
             rel_path = self.get('databases.cultivation')
         else:
@@ -274,11 +272,6 @@ class Config:
         # Nitrogen pathways
         for name, path in self.get('databases.nitrogen_pathways', {}).items():
             paths[name] = os.path.join(base_dir, path)
-        
-        # Salt tolerance
-        salt_path = self.get('databases.salt_tolerance')
-        if salt_path:
-            paths['NAIYAN'] = os.path.join(base_dir, salt_path)
         
         # Cultivation
         cult_path = self.get('databases.cultivation')
