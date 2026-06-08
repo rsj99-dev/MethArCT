@@ -22,6 +22,9 @@ tools:
   susha:
     enabled: true
 
+  ph:
+    enabled: true
+
 databases:
   base_dir: "data/databases"
   pathway_names:

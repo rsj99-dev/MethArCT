@@ -49,6 +49,9 @@ class Config:
                 },
                 'susha': {
                     'enabled': True
+                },
+                'ph': {
+                    'enabled': True
                 }
             },
             'databases': {

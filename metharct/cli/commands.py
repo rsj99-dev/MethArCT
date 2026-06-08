@@ -20,7 +20,8 @@ from metharct.core import (
     CheckM2Analyzer,
     PathwayPredictor,
     CultivationAnalyzer,
-    SuShaAnalyzer
+    SuShaAnalyzer,
+    PHAnalyzer,
 )
 from metharct.utils.config import Config
 from metharct.utils.logger import get_logger
@@ -31,7 +32,8 @@ def comprehensive_command(input_path: str,
                          config: Config,
                          skip_tome: bool = False,
                          skip_checkm2: bool = False,
-                         skip_susha: bool = False):
+                         skip_susha: bool = False,
+                         skip_ph: bool = False):
     """
     Run comprehensive analysis command
     
@@ -53,6 +55,7 @@ def comprehensive_command(input_path: str,
     print(f"Skip Tome: {skip_tome}")
     print(f"Skip CheckM2: {skip_checkm2}")
     print(f"Skip SuSha: {skip_susha}")
+    print(f"Skip pH: {skip_ph}")
     print("=" * 60 + "\n")
     
     try:
@@ -75,7 +78,8 @@ def comprehensive_command(input_path: str,
             output_prefix=output_prefix,
             include_tome=not skip_tome,
             include_checkm2=not skip_checkm2,
-            include_susha=not skip_susha
+            include_susha=not skip_susha,
+            include_ph=not skip_ph
         )
         
         end_time = time.time()
@@ -93,21 +97,50 @@ def comprehensive_command(input_path: str,
         # Print integrated results summary if available
         if 'integrated_analysis' in results:
             integrated = results['integrated_analysis']
-            
+
             if 'overall_assessment' in integrated:
                 overall = integrated['overall_assessment']
                 print(f"\nOrganism type: {overall.get('organism_type', 'Unknown')}")
                 print(f"Metabolic complexity: {overall.get('metabolic_complexity', 'Unknown')}")
                 print(f"Cultivation potential: {overall.get('cultivation_potential', 'Unknown')}")
                 print(f"Overall confidence: {overall.get('confidence', 0):.2f}")
-            
+
+                # Print key characteristics if available
+                key_chars = overall.get('key_characteristics', [])
+                if key_chars:
+                    print("\nKey Characteristics:")
+                    for char in key_chars:
+                        print(f"  - {char}")
+
+            # Print pH prediction summary if available
+            env_adaptation = integrated.get('environmental_adaptation', {})
+            ph_data = env_adaptation.get('ph', {})
+            if ph_data:
+                print("\npH Preference Prediction:")
+                ph_opt = ph_data.get('ph_optimum')
+                ph_max = ph_data.get('ph_max')
+                ph_min = ph_data.get('ph_min')
+                is_novel = ph_data.get('is_novel', False)
+                if ph_opt is not None:
+                    print(f"  pH optimum: {ph_opt:.2f}")
+                if ph_max is not None:
+                    print(f"  pH maximum: {ph_max:.2f}")
+                if ph_min is not None:
+                    print(f"  pH minimum: {ph_min:.2f}")
+                if is_novel:
+                    print("  Note: Input genome differs from training set; predictions may be less reliable.")
+            elif 'ph' in results.get('results', {}):
+                ph_result = results['results']['ph']
+                if ph_result.get('status') == 'failed':
+                    print(f"\npH Preference Prediction: FAILED ({ph_result.get('error', 'Unknown error')})")
+
             if 'recommendations' in integrated and integrated['recommendations']:
                 print("\nKey Recommendations:")
-                for i, rec in enumerate(integrated['recommendations'][:5], 1):
+                for i, rec in enumerate(integrated['recommendations'][:8], 1):
                     print(f"  {i}. {rec}")
-                
-                if len(integrated['recommendations']) > 5:
-                    print(f"  ... and {len(integrated['recommendations']) - 5} more (see detailed report)")
+
+                if len(integrated['recommendations']) > 8:
+                    print(f"  ... and {len(integrated['recommendations']) - 8} more (see detailed report)")
             
             # Print amino acid biosynthesis summary
             aa_data = integrated.get('amino_acid_biosynthesis', {})
@@ -588,4 +621,84 @@ def susha_command(input_path: str,
         
     except Exception as e:
         logger.error(f"SuSha prediction failed: {str(e)}")
+        raise
+
+
+def ph_command(input_path: str,
+               output_prefix: str,
+               config: Config):
+    """
+    Run pH preference prediction
+
+    Args:
+        input_path: Path to input FASTA file
+        output_prefix: Output file prefix
+        config: Configuration object
+    """
+    logger = get_logger("ph_command")
+
+    print("\n" + "=" * 60)
+    print("MethArCT pH Preference Prediction")
+    print("=" * 60)
+    print(f"Input file: {input_path}")
+    print(f"Output prefix: {output_prefix}")
+    print("=" * 60 + "\n")
+
+    try:
+        # Validate input file
+        if not FileUtils.validate_fasta(input_path):
+            raise ValueError(f"Invalid FASTA file: {input_path}")
+
+        # Initialize analyzer
+        analyzer = PHAnalyzer(config)
+
+        if not analyzer.tool_available:
+            raise RuntimeError(
+                "pH predictor module is not available. "
+                "Please ensure 'hmmlearn' is installed."
+            )
+
+        # Start analysis
+        start_time = time.time()
+        print("Starting pH preference prediction...")
+
+        results = analyzer.predict_ph(
+            input_file=input_path,
+            output_prefix=output_prefix
+        )
+
+        end_time = time.time()
+        analysis_time = end_time - start_time
+
+        # Print summary
+        print("\n" + "=" * 60)
+        print("pH Prediction Summary")
+        print("=" * 60)
+
+        if results.get('status') == 'success':
+            prediction = results.get('prediction', {})
+            ph_opt = prediction.get('ph_optimum', {}).get('value')
+            ph_max = prediction.get('ph_max', {}).get('value')
+            ph_min = prediction.get('ph_min', {}).get('value')
+            is_novel = results.get('is_novel', False)
+
+            print(f"pH optimum: {ph_opt:.2f}" if ph_opt is not None else "pH optimum: N/A")
+            print(f"pH maximum: {ph_max:.2f}" if ph_max is not None else "pH maximum: N/A")
+            print(f"pH minimum: {ph_min:.2f}" if ph_min is not None else "pH minimum: N/A")
+            if is_novel:
+                print("\nNote: Input genome differs from training set; predictions may be less reliable.")
+
+            output_files = results.get('output_files', {})
+            if output_files.get('tsv'):
+                print(f"\nResults saved to: {output_files['tsv']}")
+        else:
+            print(f"Prediction failed: {results.get('error', 'Unknown error')}")
+
+        print(f"\nAnalysis time: {analysis_time:.2f} seconds")
+        print("=" * 60)
+
+        logger.info(f"pH prediction completed in {analysis_time:.2f} seconds")
+
+    except Exception as e:
+        logger.error(f"pH prediction failed: {str(e)}")
         raise

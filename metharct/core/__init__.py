@@ -8,6 +8,7 @@ This module contains the core analysis components for MethArCT:
 - CultivationAnalyzer: Metabolic pathway analysis for cultivability assessment
 - TomeAnalyzer: Optimal growth temperature prediction
 - SuShaAnalyzer: Salinity adaptation prediction
+- PHAnalyzer: Growth pH preference prediction
 - CheckM2Analyzer: Genome quality assessment and cultivability evaluation
 - PathwayPredictor: Comprehensive analysis integrating all tools
 """
@@ -16,6 +17,7 @@ from .diamond_analyzer import DiamondAnalyzer
 from .cultivation_analyzer import CultivationAnalyzer
 from .tome_analyzer import TomeAnalyzer
 from .susha_analyzer import SuShaAnalyzer
+from .ph_analyzer import PHAnalyzer
 from .checkm2_analyzer import CheckM2Analyzer
 from .pathway_predictor import PathwayPredictor
 
@@ -24,10 +26,11 @@ __all__ = [
     'CultivationAnalyzer',
     'TomeAnalyzer',
     'SuShaAnalyzer',
+    'PHAnalyzer',
     'CheckM2Analyzer',
     'PathwayPredictor'
 ]
 
 # Version information
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 __author__ = 'rsj1999'

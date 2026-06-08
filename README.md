@@ -2,7 +2,7 @@
 
 ## Overview
 
-MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, and cultivability.
+MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, pH preference, and cultivability.
 
 Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
@@ -14,13 +14,14 @@ Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methard
 
 ### Extended Features (Optional)
 - **Salinity Prediction**: Microbial salinity adaptation prediction based on amino acid composition features using SuSha ensemble learning model
-- **Temperature Prediction**: Optimal Growth Temperature (OGT) prediction - requires Tome tool
-- **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 - requires CheckM2 tool
+- **Temperature Prediction**: Optimal Growth Temperature (OGT) prediction — requires Tome tool
+- **pH Prediction**: Growth pH preference prediction (optimum, maximum, minimum) based on genome-wide amino acid composition features using GenomeSpot Lasso regression models
+- **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 — requires CheckM2 tool
 
 ## System Requirements
 
 ### Basic Requirements
-- **Python**: 3.8
+- **Python**: >= 3.9
 - **Required Tool**: Diamond
 - **Operating System**: Windows, Linux
 
@@ -86,7 +87,7 @@ Extract "checkm2_db.zip" to the root directory of the MethArCT folder.
 
 **Core Analysis (Diamond only)**:
 ```bash
-# Metabolic pathway analysis - core feature
+# Metabolic pathway analysis — core feature
 metharct diamond "protein.faa" -o results/
 
 # Comprehensive analysis (skip optional tools)
@@ -100,6 +101,7 @@ metharct comprehensive "protein.faa" -o results/
 
 # Run optional analyses separately
 metharct susha "protein.faa" -o results/         # Salinity prediction
+metharct ph "protein.faa" -o results/            # pH preference prediction
 metharct tome "protein.faa" -o results/          # Requires Tome
 metharct checkm2 "genome.fasta" -o results/      # Requires CheckM2
 ```
@@ -129,16 +131,17 @@ print(results)
 ### 4. Output Description
 
 **Core Feature Output (Diamond Analysis)**:
-- `[filename]_diamond_summary.csv` - Metabolic pathway summary
-- `[filename]_diamond_results.json` - Detailed analysis results
-- `[filename]_*_diamond.tsv` - Detailed alignment results for each pathway
+- `[filename]_diamond_summary.csv` — Metabolic pathway summary
+- `[filename]_diamond_results.json` — Detailed analysis results
+- `[filename]_*_diamond.tsv` — Detailed alignment results for each pathway
 
 **Comprehensive Analysis Report**:
-- `[filename]_integrated_summary.csv` - Integrated assessment results
-- `[filename]_comprehensive_analysis.json` - Complete analysis data
+- `[filename]_integrated_summary.csv` — Integrated assessment results
+- `[filename]_comprehensive_analysis.json` — Complete analysis data
 
-**Optional Feature Output**:
+**Optional Feature Outputs**:
 - SuSha salinity results: `[filename]_SuSha_Summary.tsv` and `[filename]_SuSha_Result.xlsx`
+- pH preference results: `[filename]_pH_Summary.tsv` and `[filename]_pH_Details.json`
 - Tome results in `[filename]_tome/` directory
 - CheckM2 results in `[filename]_checkm2/` directory with `quality_report.tsv`
 
@@ -163,6 +166,11 @@ conda install -c bioconda diamond
 diamond --help
 ```
 
+**pH prediction module not available**:
+```bash
+pip install hmmlearn>=0.3.0
+```
+
 ### Runtime Issues
 
 **Filename with special characters**:
@@ -185,26 +193,27 @@ conda install -c bioconda tome checkm2
 
 ```
 MethArCT/
-├── metharct/              # Main package
-│   ├── cli/               # Command line interface
-│   ├── core/               # Core analysis modules
-│   │   └── susha/          # SuSha salinity prediction (embedded)
-│   └── utils/              # Utility functions
-├── Tome-1.1.0/            # Tome OGT prediction module
-├── data/                  # Reference databases
-│   ├── databases/          # Diamond databases
-│   ├── methane/            # Methane metabolism genes
-│   ├── nitrogen/            # Nitrogen metabolism genes
-│   ├── sulfur/              # Sulfur metabolism genes
-├── example_usage.py       # Usage examples
-├── example_wsl_usage.py   # WSL usage examples
-├── requirements.txt       # Python dependencies
-└── setup.py              # Package setup
+├── metharct/                       # Main package
+│   ├── cli/                        # Command line interface
+│   ├── core/                       # Core analysis modules
+│   │   ├── susha/                  # SuSha salinity prediction (embedded)
+│   │   └── ph_predictor/           # pH prediction engine (embedded, GenomeSpot-based)
+│   │       ├── models/             # Pre-trained Lasso regression models
+│   │       └── hmm/                # Signal peptide HMM model
+│   └── utils/                      # Utility functions
+├── Tome-1.1.0/                     # Tome OGT prediction module
+├── data/                           # Reference databases
+│   ├── databases/                  # Diamond databases
+│   ├── methane/                    # Methane metabolism genes
+│   ├── nitrogen/                   # Nitrogen metabolism genes
+│   └── sulfur/                     # Sulfur metabolism genes
+├── requirements.txt                # Python dependencies
+└── setup.py                        # Package setup
 ```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License — see the LICENSE file for details.
 
 ## Citation
 

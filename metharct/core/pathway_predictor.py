@@ -3,7 +3,7 @@
 """
 Pathway predictor for MethArCT
 
-Integrates Diamond, Cultivation, Tome and CheckM2 analysis results to provide comprehensive
+Integrates Diamond, Cultivation, Tome, SuSha, pH and CheckM2 analysis results to provide comprehensive
 metabolic pathway predictions and cultivability assessments.
 """
 
@@ -19,6 +19,7 @@ from .diamond_analyzer import DiamondAnalyzer
 from .cultivation_analyzer import CultivationAnalyzer
 from .tome_analyzer import TomeAnalyzer
 from .susha_analyzer import SuShaAnalyzer
+from .ph_analyzer import PHAnalyzer
 from .checkm2_analyzer import CheckM2Analyzer
 
 class PathwayPredictor:
@@ -33,6 +34,7 @@ class PathwayPredictor:
         self.cultivation_analyzer = CultivationAnalyzer(self.config.config)
         self.tome_analyzer = TomeAnalyzer(self.config)
         self.susha_analyzer = SuShaAnalyzer(self.config)
+        self.ph_analyzer = PHAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
         
         # Results directory
@@ -52,10 +54,11 @@ class PathwayPredictor:
                             include_tome: bool = True,
                             include_checkm2: bool = True,
                             include_cultivation: bool = True,
-                            include_susha: bool = True) -> Dict[str, any]:
+                            include_susha: bool = True,
+                            include_ph: bool = True) -> Dict[str, any]:
         """
         Perform comprehensive pathway prediction analysis
-        
+
         Args:
             input_path: Path to input FASTA file
             output_prefix: Prefix for output files
@@ -63,7 +66,8 @@ class PathwayPredictor:
             include_checkm2: Whether to include CheckM2 analysis
             include_cultivation: Whether to include Cultivation analysis
             include_susha: Whether to include SuSha salinity prediction
-            
+            include_ph: Whether to include pH preference prediction
+
         Returns:
             Comprehensive analysis results
         """
@@ -179,7 +183,28 @@ class PathwayPredictor:
                     'error': str(e)
                 }
         
-        # 4. CheckM2 analysis (genome quality and cultivability)
+        # 4. pH analysis (growth pH preference)
+        if include_ph:
+            try:
+                self.logger.info("Running pH preference prediction...")
+                ph_results = self.ph_analyzer.predict_ph(
+                    input_file=input_path, output_prefix=output_prefix
+                )
+                if ph_results.get('status') != 'failed':
+                    comprehensive_results['analyses_performed'].append('ph')
+                    comprehensive_results['results']['ph'] = ph_results
+                    self.logger.info("pH prediction completed")
+                else:
+                    comprehensive_results['results']['ph'] = ph_results
+                    self.logger.warning(f"pH prediction failed: {ph_results.get('error')}")
+            except Exception as e:
+                self.logger.error(f"pH prediction failed: {str(e)}")
+                comprehensive_results['results']['ph'] = {
+                    'status': 'failed',
+                    'error': str(e)
+                }
+
+        # 5. CheckM2 analysis (genome quality and cultivability)
         if include_checkm2:
             try:
                 self.logger.info("Running CheckM2 analysis...")
@@ -196,7 +221,7 @@ class PathwayPredictor:
                     'error': str(e)
                 }
         
-        # 5. Integrate results
+        # 6. Integrate results
         try:
             integrated_results = self._integrate_results(comprehensive_results['results'])
             comprehensive_results['integrated_analysis'] = integrated_results
@@ -208,7 +233,7 @@ class PathwayPredictor:
                 'error': str(e)
             }
         
-        # 6. Save comprehensive results
+        # 7. Save comprehensive results
         self._save_comprehensive_results(comprehensive_results, output_prefix)
         
         return comprehensive_results
@@ -258,6 +283,17 @@ class PathwayPredictor:
                 'salinity_index': prediction.get('salinity_index', -1),
                 'confidence': prediction.get('confidence', 0),
                 'top3_predictions': susha_data.get('top3_predictions', []),
+            }
+
+        # Process pH results
+        if 'ph' in analysis_results and analysis_results['ph'].get('status') != 'failed':
+            ph_data = analysis_results['ph']
+            ph_prediction = ph_data.get('prediction', {})
+            integrated['environmental_adaptation']['ph'] = {
+                'ph_optimum': ph_prediction.get('ph_optimum', {}).get('value'),
+                'ph_max': ph_prediction.get('ph_max', {}).get('value'),
+                'ph_min': ph_prediction.get('ph_min', {}).get('value'),
+                'is_novel': ph_data.get('is_novel', False),
             }
         
         # Process CheckM2 results
@@ -535,6 +571,17 @@ class PathwayPredictor:
             assessment['key_characteristics'].append(f'Salinity: {salinity_label}')
         elif salinity_label == 'Halotolerant':
             assessment['key_characteristics'].append('Salinity: Halotolerant')
+
+        # pH adaptation
+        ph_data = env_adaptation.get('ph', {})
+        ph_opt = ph_data.get('ph_optimum')
+        if ph_opt is not None:
+            if ph_opt < 5.5:
+                assessment['key_characteristics'].append(f'pH preference: acidophilic (optimum {ph_opt:.1f})')
+            elif ph_opt > 8.5:
+                assessment['key_characteristics'].append(f'pH preference: alkaliphilic (optimum {ph_opt:.1f})')
+            else:
+                assessment['key_characteristics'].append(f'pH preference: neutrophilic (optimum {ph_opt:.1f})')
         
         # Cultivation potential
         cultivability = integrated_data.get('cultivability_assessment', {})
@@ -605,6 +652,14 @@ class PathwayPredictor:
             recommendations.append("Organism is halotolerant - standard to low-salt media suitable")
         elif salinity_label == 'Salt-sensitive':
             recommendations.append("Use salt-free or very low-salt media for cultivation")
+
+        # pH recommendations
+        ph_data = integrated_data.get('environmental_adaptation', {}).get('ph', {})
+        ph_opt = ph_data.get('ph_optimum')
+        if ph_opt is not None:
+            recommendations.append(f"Recommended cultivation pH: {ph_opt:.1f}")
+            if ph_data.get('is_novel'):
+                recommendations.append("pH prediction based on novel genome — consider experimental validation")
         
         # Metabolic recommendations
         metabolic_profile = integrated_data.get('metabolic_profile', {})
@@ -752,6 +807,20 @@ class PathwayPredictor:
                                 f.write("  Top 3 predictions:\n")
                                 for t in top3:
                                     f.write(f"    {t['rank']}. {t['label']}: {t['probability']:.2%}\n")
+
+                        elif analysis_type == 'ph':
+                            ph_pred = analysis_data.get('prediction', {})
+                            ph_opt = ph_pred.get('ph_optimum', {}).get('value')
+                            ph_max = ph_pred.get('ph_max', {}).get('value')
+                            ph_min = ph_pred.get('ph_min', {}).get('value')
+                            if ph_opt is not None:
+                                f.write(f"  pH optimum: {ph_opt:.2f}\n")
+                            if ph_max is not None:
+                                f.write(f"  pH maximum: {ph_max:.2f}\n")
+                            if ph_min is not None:
+                                f.write(f"  pH minimum: {ph_min:.2f}\n")
+                            if analysis_data.get('is_novel'):
+                                f.write("  Note: Novel genome — predictions may be less reliable\n")
                         
                         elif analysis_type == 'checkm2' and 'summary' in analysis_data:
                             summary = analysis_data['summary']

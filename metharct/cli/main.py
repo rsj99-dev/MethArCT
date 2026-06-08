@@ -23,7 +23,8 @@ try:
         tome_command,
         checkm2_command,
         comprehensive_command,
-        susha_command
+        susha_command,
+        ph_command
     )
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -50,6 +51,7 @@ Examples:
   metharct diamond input.fasta -o diamond_results
   metharct tome input.fasta -o tome_results
   metharct susha input.fasta -o susha_results
+  metharct ph input.fasta -o ph_results
   metharct checkm2 input.fasta -o checkm2_results
   
   # With custom configuration
@@ -78,7 +80,7 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     parser.add_argument(
         '--version',
         action='version',
-        version='MethArCT 0.3.0'
+        version='MethArCT 0.5.0'
     )
     
     # Create subparsers for different commands
@@ -91,8 +93,8 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     # Comprehensive analysis command
     comprehensive_parser = subparsers.add_parser(
         'comprehensive',
-        help='Run comprehensive analysis (Diamond + Tome + SuSha + CheckM2)',
-        description='Perform comprehensive metabolic pathway prediction, temperature analysis, salinity prediction, and genome quality assessment'
+        help='Run comprehensive analysis (Diamond + Tome + SuSha + pH + CheckM2)',
+        description='Perform comprehensive metabolic pathway prediction, temperature analysis, salinity prediction, pH prediction, and genome quality assessment'
     )
     _add_comprehensive_args(comprehensive_parser)
     
@@ -135,7 +137,15 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         description='Predict microbial salinity adaptation using SuSha ensemble learning model'
     )
     _add_susha_args(susha_parser)
-    
+
+    # pH preference prediction command
+    ph_parser = subparsers.add_parser(
+        'ph',
+        help='Run pH preference prediction',
+        description='Predict microbial growth pH preference (optimum, max, min) using GenomeSpot models'
+    )
+    _add_ph_args(ph_parser)
+
     return parser
 
 def _add_comprehensive_args(parser: argparse.ArgumentParser):
@@ -169,6 +179,12 @@ def _add_comprehensive_args(parser: argparse.ArgumentParser):
         '--skip-susha',
         action='store_true',
         help='Skip SuSha salinity prediction'
+    )
+
+    parser.add_argument(
+        '--skip-ph',
+        action='store_true',
+        help='Skip pH preference prediction'
     )
     
     parser.add_argument(
@@ -302,7 +318,22 @@ def _add_susha_args(parser: argparse.ArgumentParser):
         type=str,
         help='Input FASTA file path (protein sequences)'
     )
-    
+
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        required=True,
+        help='Output file prefix'
+    )
+
+def _add_ph_args(parser: argparse.ArgumentParser):
+    """Add arguments for pH preference prediction command"""
+    parser.add_argument(
+        'input',
+        type=str,
+        help='Input FASTA file path (protein sequences)'
+    )
+
     parser.add_argument(
         '-o', '--output',
         type=str,
@@ -506,7 +537,8 @@ def main():
                     config=config,
                     skip_tome=args.skip_tome,
                     skip_checkm2=args.skip_checkm2,
-                    skip_susha=getattr(args, 'skip_susha', False)
+                    skip_susha=getattr(args, 'skip_susha', False),
+                    skip_ph=getattr(args, 'skip_ph', False)
                 )
             
             elif args.command == 'diamond':
@@ -562,6 +594,13 @@ def main():
             
             elif args.command == 'susha':
                 susha_command(
+                    input_path=str(input_path),
+                    output_prefix=output_prefix,
+                    config=config
+                )
+
+            elif args.command == 'ph':
+                ph_command(
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config

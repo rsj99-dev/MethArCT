@@ -35,7 +35,7 @@ def read_requirements():
 
 # Get version information
 def get_version():
-    # For this release, version is hardcoded to 0.4.0
+    # For this release, version is hardcoded to 0.5.0
     # Original dynamic read is commented out below
     # version_file = os.path.join("metharct", "__init__.py")
     # if os.path.exists(version_file):
@@ -43,14 +43,14 @@ def get_version():
     #         for line in f:
     #             if line.startswith("__version__"):
     #                 return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.4.0"
+    return "0.5.0"
 
 setup(
     name="metharct",
     version=get_version(),
     author="rsj99",
     author_email="rsj1999@njtech.edu.cn",
-    description="Methanogenic Archaea Metabolic Pathway Analysis Tool",
+    description="Methanogenic Archaea Metabolic Pathway and Environmental Preference Analysis Tool",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/MethArCT/metharct",
@@ -104,6 +104,8 @@ setup(
         "metharct": [
             "data/databases/**/*",
             "core/susha/models/*.pkl",
+            "core/ph_predictor/models/*.joblib",
+            "core/ph_predictor/hmm/*.joblib",
             "*.yaml",
             "*.yml",
         ],
@@ -120,6 +122,7 @@ setup(
         "genome analysis",
         "temperature prediction",
         "salinity prediction",
+        "pH prediction",
         "checkm2",
         "tome",
         "susha",
