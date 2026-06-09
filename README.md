@@ -171,24 +171,6 @@ diamond --help
 pip install hmmlearn>=0.3.0
 ```
 
-### Runtime Issues
-
-**Filename with special characters**:
-```bash
-# Wrong
-metharct diamond protein.faa -o results/
-
-# Correct
-metharct diamond "protein.faa" -o results/
-```
-
-**WSL Configuration**:
-```bash
-wsl --install
-wsl
-conda install -c bioconda tome checkm2
-```
-
 ## Project Structure
 
 ```
