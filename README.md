@@ -64,6 +64,8 @@ pip install -e .
 conda install -c bioconda diamond
 ```
 
+> **Windows Note**: If `conda install diamond` fails, manually download `diamond.exe` from [Diamond Releases](https://github.com/bbuchfink/diamond/releases) and place it in the **MethArCT-main root directory**.
+
 ### Step 4: Verify Installation
 ```bash
 # Test core functionality
@@ -173,6 +175,13 @@ conda activate metharct
 conda install -c bioconda diamond
 diamond --help
 ```
+
+**Windows: Diamond not found**:
+If conda install fails, manually download `diamond.exe` and place it in the MethArCT root directory:
+1. Visit https://github.com/bbuchfink/diamond/releases
+2. Download the latest `diamond-windows.zip` and extract `diamond.exe`
+3. Place `diamond.exe` in the MethArCT-main root folder
+4. Re-run the analysis command
 
 **pH prediction module not available**:
 ```bash
