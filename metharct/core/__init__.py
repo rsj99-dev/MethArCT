@@ -19,6 +19,7 @@ from .tome_analyzer import TomeAnalyzer
 from .susha_analyzer import SuShaAnalyzer
 from .ph_analyzer import PHAnalyzer
 from .checkm2_analyzer import CheckM2Analyzer
+from .antibiotic_analyzer import AntibioticAnalyzer
 from .pathway_predictor import PathwayPredictor
 
 __all__ = [
@@ -28,9 +29,10 @@ __all__ = [
     'SuShaAnalyzer',
     'PHAnalyzer',
     'CheckM2Analyzer',
+    'AntibioticAnalyzer',
     'PathwayPredictor'
 ]
 
 # Version information
-__version__ = '0.5.0'
+__version__ = '0.5.5'
 __author__ = 'rsj1999'

@@ -2,7 +2,7 @@
 """
 MethArCT Main Analyzer
 
-Primary analysis class integrating Diamond, Tome, CheckM2 and other analysis tools
+Primary analysis class integrating Diamond, Tome, CheckM2, Antibiotic and other analysis tools
 """
 
 import os
@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Union
 from .core.diamond_analyzer import DiamondAnalyzer
 from .core.tome_analyzer import TomeAnalyzer
 from .core.checkm2_analyzer import CheckM2Analyzer
+from .core.antibiotic_analyzer import AntibioticAnalyzer
 from .core.pathway_predictor import PathwayPredictor
 from .utils.config import Config
 from .utils.logger import get_logger
@@ -40,6 +41,7 @@ class MethArCTAnalyzer:
         self.diamond_analyzer = DiamondAnalyzer(self.config)
         self.tome_analyzer = TomeAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
+        self.antibiotic_analyzer = AntibioticAnalyzer(self.config)
         self.pathway_predictor = PathwayPredictor(self.config)
         
         # Results output directory
@@ -54,6 +56,7 @@ class MethArCTAnalyzer:
                             run_diamond: bool = True,
                             run_tome: bool = True,
                             run_checkm2: bool = True,
+                            run_antibiotic: bool = True,
                             **kwargs) -> Dict:
         """
         Execute comprehensive analysis
@@ -64,6 +67,7 @@ class MethArCTAnalyzer:
             run_diamond: Whether to run Diamond analysis
             run_tome: Whether to run Tome analysis
             run_checkm2: Whether to run CheckM2 analysis
+            run_antibiotic: Whether to run antibiotic resistance prediction
             **kwargs: Other parameters
             
         Returns:
@@ -109,6 +113,15 @@ class MethArCTAnalyzer:
                     os.path.join(output_dir, 'checkm2')
                 )
                 results['analysis_results']['checkm2'] = checkm2_results
+
+            # Antibiotic resistance prediction
+            if run_antibiotic:
+                self.logger.info("Running antibiotic resistance prediction...")
+                antibiotic_results = self.antibiotic_analyzer.predict_antibiotics(
+                    input_file=input_file,
+                    output_prefix=os.path.join(output_dir, 'antibiotic', os.path.basename(input_file)),
+                )
+                results['analysis_results']['antibiotic'] = antibiotic_results
                 
             # Metabolic pathway prediction (based on Diamond results)
             if run_diamond:
@@ -182,6 +195,25 @@ class MethArCTAnalyzer:
             output_dir = os.path.join(self.results_dir, 'checkm2')
             
         return self.checkm2_analyzer.analyze(input_file, output_dir)
+    
+    def analyze_antibiotic(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
+        """
+        Execute antibiotic resistance prediction only
+    
+        Args:
+            input_file: Input file path
+            output_dir: Output directory
+    
+        Returns:
+            Antibiotic prediction results
+        """
+        if output_dir is None:
+            output_dir = os.path.join(self.results_dir, 'antibiotic')
+    
+        return self.antibiotic_analyzer.predict_antibiotics(
+            input_file=input_file,
+            output_prefix=os.path.join(output_dir, os.path.basename(input_file)),
+        )
     
     def get_analysis_summary(self, results: Dict) -> Dict:
         """

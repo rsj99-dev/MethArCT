@@ -3,7 +3,7 @@
 """
 Pathway predictor for MethArCT
 
-Integrates Diamond, Cultivation, Tome, SuSha, pH and CheckM2 analysis results to provide comprehensive
+Integrates Diamond, Cultivation, Tome, SuSha, pH, Antibiotic and CheckM2 analysis results to provide comprehensive
 metabolic pathway predictions and cultivability assessments.
 """
 
@@ -21,6 +21,7 @@ from .tome_analyzer import TomeAnalyzer
 from .susha_analyzer import SuShaAnalyzer
 from .ph_analyzer import PHAnalyzer
 from .checkm2_analyzer import CheckM2Analyzer
+from .antibiotic_analyzer import AntibioticAnalyzer
 
 class PathwayPredictor:
     """Comprehensive pathway predictor integrating multiple analysis tools"""
@@ -36,6 +37,7 @@ class PathwayPredictor:
         self.susha_analyzer = SuShaAnalyzer(self.config)
         self.ph_analyzer = PHAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
+        self.antibiotic_analyzer = AntibioticAnalyzer(self.config)
         
         # Results directory
         self.results_dir = self.config.get('output.base_dir', 'results')
@@ -55,7 +57,8 @@ class PathwayPredictor:
                             include_checkm2: bool = True,
                             include_cultivation: bool = True,
                             include_susha: bool = True,
-                            include_ph: bool = True) -> Dict[str, any]:
+                            include_ph: bool = True,
+                            include_antibiotic: bool = True) -> Dict[str, any]:
         """
         Perform comprehensive pathway prediction analysis
 
@@ -67,6 +70,7 @@ class PathwayPredictor:
             include_cultivation: Whether to include Cultivation analysis
             include_susha: Whether to include SuSha salinity prediction
             include_ph: Whether to include pH preference prediction
+            include_antibiotic: Whether to include antibiotic resistance prediction
 
         Returns:
             Comprehensive analysis results
@@ -204,7 +208,28 @@ class PathwayPredictor:
                     'error': str(e)
                 }
 
-        # 5. CheckM2 analysis (genome quality and cultivability)
+        # 5. Antibiotic resistance prediction
+        if include_antibiotic:
+            try:
+                self.logger.info("Running antibiotic resistance prediction...")
+                antibiotic_results = self.antibiotic_analyzer.predict_antibiotics(
+                    input_file=input_path, output_prefix=output_prefix
+                )
+                if antibiotic_results.get('status') != 'failed':
+                    comprehensive_results['analyses_performed'].append('antibiotic')
+                    comprehensive_results['results']['antibiotic'] = antibiotic_results
+                    self.logger.info("Antibiotic prediction completed")
+                else:
+                    comprehensive_results['results']['antibiotic'] = antibiotic_results
+                    self.logger.warning(f"Antibiotic prediction failed: {antibiotic_results.get('error')}")
+            except Exception as e:
+                self.logger.error(f"Antibiotic prediction failed: {str(e)}")
+                comprehensive_results['results']['antibiotic'] = {
+                    'status': 'failed',
+                    'error': str(e)
+                }
+
+        # 6. CheckM2 analysis (genome quality and cultivability)
         if include_checkm2:
             try:
                 self.logger.info("Running CheckM2 analysis...")
@@ -295,6 +320,25 @@ class PathwayPredictor:
                 'ph_min': ph_prediction.get('ph_min', {}).get('value'),
                 'is_novel': ph_data.get('is_novel', False),
             }
+        
+        # Process Antibiotic results
+        if 'antibiotic' in analysis_results:
+            antibiotic_data = analysis_results['antibiotic']
+            if antibiotic_data.get('status') != 'failed':
+                integrated['antibiotic_resistance'] = {
+                    'recommended_antibiotics': antibiotic_data.get('recommended_antibiotics', []),
+                    'aai_results': antibiotic_data.get('aai_results', {}),
+                    'all_rules': antibiotic_data.get('all_rules', []),
+                    'status': 'success',
+                }
+            else:
+                integrated['antibiotic_resistance'] = {
+                    'recommended_antibiotics': [],
+                    'aai_results': {},
+                    'all_rules': [],
+                    'status': 'failed',
+                    'error': antibiotic_data.get('error', 'Unknown error'),
+                }
         
         # Process CheckM2 results
         if 'checkm2' in analysis_results and 'status' not in analysis_results['checkm2']:
@@ -702,6 +746,24 @@ class PathwayPredictor:
         if overall.get('confidence', 0) < 0.5:
             recommendations.append("Low confidence predictions - consider additional sequencing or analysis")
         
+        # Antibiotic resistance recommendations
+        antibiotic_data = integrated_data.get('antibiotic_resistance', {})
+        if antibiotic_data:
+            if antibiotic_data.get('status') == 'failed':
+                recommendations.append(
+                    f"Antibiotic resistance: prediction FAILED ({antibiotic_data.get('error', 'Unknown error')})"
+                )
+            else:
+                recommended_abs = antibiotic_data.get('recommended_antibiotics', [])
+                if recommended_abs:
+                    recommendations.append(
+                        f"Antibiotic resistance: effective antibiotics include {', '.join(recommended_abs)}"
+                    )
+                else:
+                    recommendations.append(
+                        "Antibiotic resistance: no matching antibiotic recommendations based on AAI analysis"
+                    )
+        
         return recommendations
     
     def _save_comprehensive_results(self, results: Dict, output_prefix: str):
@@ -827,6 +889,14 @@ class PathwayPredictor:
                             f.write(f"  Average completeness: {summary.get('average_completeness', 0):.1f}%\n")
                             f.write(f"  Average contamination: {summary.get('average_contamination', 0):.1f}%\n")
                             f.write(f"  Cultivability: {summary.get('cultivability_assessment', {}).get('overall_cultivability', 'Unknown')}\n")
+
+                        elif analysis_type == 'antibiotic':
+                            f.write(f"  Recommended antibiotics: {', '.join(analysis_data.get('recommended_antibiotics', [])) or 'None'}\n")
+                            aai = analysis_data.get('aai_results', {})
+                            if aai:
+                                f.write("  AAI against reference genomes:\n")
+                                for ref, val in sorted(aai.items()):
+                                    f.write(f"    {ref}: {val:.2f}%\n")
                         
                         # Add amino acid biosynthesis summary for cultivation analysis
                         if analysis_type == 'cultivation' and 'amino_acid_biosynthesis' in analysis_data:

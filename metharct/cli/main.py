@@ -24,7 +24,8 @@ try:
         checkm2_command,
         comprehensive_command,
         susha_command,
-        ph_command
+        ph_command,
+        antibiotic_command
     )
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -52,6 +53,7 @@ Examples:
   metharct tome input.fasta -o tome_results
   metharct susha input.fasta -o susha_results
   metharct ph input.fasta -o ph_results
+  metharct antibiotic input.fasta -o antibiotic_results
   metharct checkm2 input.fasta -o checkm2_results
   
   # With custom configuration
@@ -80,7 +82,7 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     parser.add_argument(
         '--version',
         action='version',
-        version='MethArCT 0.5.0'
+        version='MethArCT 0.5.5'
     )
     
     # Create subparsers for different commands
@@ -146,6 +148,14 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     )
     _add_ph_args(ph_parser)
 
+    # Antibiotic resistance prediction command
+    antibiotic_parser = subparsers.add_parser(
+        'antibiotic',
+        help='Run antibiotic resistance prediction based on AAI',
+        description='Predict antibiotic resistance by comparing query proteins against methanogen reference genomes using AAI thresholds'
+    )
+    _add_antibiotic_args(antibiotic_parser)
+
     return parser
 
 def _add_comprehensive_args(parser: argparse.ArgumentParser):
@@ -185,6 +195,12 @@ def _add_comprehensive_args(parser: argparse.ArgumentParser):
         '--skip-ph',
         action='store_true',
         help='Skip pH preference prediction'
+    )
+
+    parser.add_argument(
+        '--skip-antibiotic',
+        action='store_true',
+        help='Skip antibiotic resistance prediction'
     )
     
     parser.add_argument(
@@ -339,6 +355,35 @@ def _add_ph_args(parser: argparse.ArgumentParser):
         type=str,
         required=True,
         help='Output file prefix'
+    )
+
+def _add_antibiotic_args(parser: argparse.ArgumentParser):
+    """Add arguments for antibiotic resistance prediction command"""
+    parser.add_argument(
+        'input',
+        type=str,
+        help='Input FASTA file path (protein sequences)'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        required=True,
+        help='Output file prefix'
+    )
+
+    parser.add_argument(
+        '--threads',
+        type=int,
+        default=4,
+        help='Number of threads for DIAMOND (default: 4)'
+    )
+
+    parser.add_argument(
+        '--evalue',
+        type=float,
+        default=1e-5,
+        help='E-value threshold for DIAMOND (default: 1e-5)'
     )
 
 def _add_checkm2_args(parser: argparse.ArgumentParser):
@@ -538,7 +583,8 @@ def main():
                     skip_tome=args.skip_tome,
                     skip_checkm2=args.skip_checkm2,
                     skip_susha=getattr(args, 'skip_susha', False),
-                    skip_ph=getattr(args, 'skip_ph', False)
+                    skip_ph=getattr(args, 'skip_ph', False),
+                    skip_antibiotic=getattr(args, 'skip_antibiotic', False)
                 )
             
             elif args.command == 'diamond':
@@ -601,6 +647,19 @@ def main():
 
             elif args.command == 'ph':
                 ph_command(
+                    input_path=str(input_path),
+                    output_prefix=output_prefix,
+                    config=config
+                )
+
+            elif args.command == 'antibiotic':
+                # Override config with command line arguments
+                if hasattr(args, 'threads') and args.threads:
+                    config.set('tools.diamond.threads', args.threads)
+                if hasattr(args, 'evalue') and args.evalue:
+                    config.set('tools.diamond.evalue', args.evalue)
+
+                antibiotic_command(
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config

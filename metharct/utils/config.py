@@ -52,6 +52,9 @@ class Config:
                 },
                 'ph': {
                     'enabled': True
+                },
+                'antibiotic': {
+                    'enabled': True
                 }
             },
             'databases': {
@@ -93,7 +96,8 @@ class Config:
                     'vitamin': 'cultivation/path.vc',
                     'nucleotide': 'cultivation/path_hesuan',
                     'atp': 'cultivation/path_atp'
-                }
+                },
+                'kangshengsu': 'kangshengsu'
             },
             'pathway_names': {
                 # Methane pathways

@@ -22,6 +22,7 @@ from metharct.core import (
     CultivationAnalyzer,
     SuShaAnalyzer,
     PHAnalyzer,
+    AntibioticAnalyzer,
 )
 from metharct.utils.config import Config
 from metharct.utils.logger import get_logger
@@ -33,7 +34,8 @@ def comprehensive_command(input_path: str,
                          skip_tome: bool = False,
                          skip_checkm2: bool = False,
                          skip_susha: bool = False,
-                         skip_ph: bool = False):
+                         skip_ph: bool = False,
+                         skip_antibiotic: bool = False):
     """
     Run comprehensive analysis command
     
@@ -44,6 +46,8 @@ def comprehensive_command(input_path: str,
         skip_tome: Skip Tome analysis
         skip_checkm2: Skip CheckM2 analysis
         skip_susha: Skip SuSha salinity prediction
+        skip_ph: Skip pH preference prediction
+        skip_antibiotic: Skip antibiotic resistance prediction
     """
     logger = get_logger("comprehensive_command")
     
@@ -56,6 +60,7 @@ def comprehensive_command(input_path: str,
     print(f"Skip CheckM2: {skip_checkm2}")
     print(f"Skip SuSha: {skip_susha}")
     print(f"Skip pH: {skip_ph}")
+    print(f"Skip Antibiotic: {skip_antibiotic}")
     print("=" * 60 + "\n")
     
     try:
@@ -79,7 +84,8 @@ def comprehensive_command(input_path: str,
             include_tome=not skip_tome,
             include_checkm2=not skip_checkm2,
             include_susha=not skip_susha,
-            include_ph=not skip_ph
+            include_ph=not skip_ph,
+            include_antibiotic=not skip_antibiotic
         )
         
         end_time = time.time()
@@ -133,6 +139,28 @@ def comprehensive_command(input_path: str,
                 ph_result = results['results']['ph']
                 if ph_result.get('status') == 'failed':
                     print(f"\npH Preference Prediction: FAILED ({ph_result.get('error', 'Unknown error')})")
+
+            # Print antibiotic resistance summary
+            antibiotic_data = integrated.get('antibiotic_resistance', {})
+            if antibiotic_data:
+                print("\nAntibiotic Resistance Prediction:")
+                if antibiotic_data.get('status') == 'failed':
+                    print(f"  FAILED ({antibiotic_data.get('error', 'Unknown error')})")
+                else:
+                    recommended_abs = antibiotic_data.get('recommended_antibiotics', [])
+                    if recommended_abs:
+                        print(f"  Recommended: {', '.join(recommended_abs)}")
+                    else:
+                        print("  No matching antibiotic recommendations")
+                    aai = antibiotic_data.get('aai_results', {})
+                    if aai:
+                        print("  AAI values:")
+                        for ref, val in sorted(aai.items()):
+                            print(f"    {ref}: {val:.2f}%")
+            elif 'antibiotic' in results.get('results', {}):
+                ab_result = results['results']['antibiotic']
+                if ab_result.get('status') == 'failed':
+                    print(f"\nAntibiotic Resistance Prediction: FAILED ({ab_result.get('error', 'Unknown error')})")
 
             if 'recommendations' in integrated and integrated['recommendations']:
                 print("\nKey Recommendations:")
@@ -701,4 +729,107 @@ def ph_command(input_path: str,
 
     except Exception as e:
         logger.error(f"pH prediction failed: {str(e)}")
+        raise
+
+
+def antibiotic_command(input_path: str,
+                      output_prefix: str,
+                      config: Config):
+    """
+    Run antibiotic resistance prediction
+
+    Args:
+        input_path: Path to input FASTA file
+        output_prefix: Output file prefix
+        config: Configuration object
+    """
+    logger = get_logger("antibiotic_command")
+
+    print("\n" + "=" * 60)
+    print("MethArCT Antibiotic Resistance Prediction")
+    print("=" * 60)
+    print(f"Input file: {input_path}")
+    print(f"Output prefix: {output_prefix}")
+    print("=" * 60 + "\n")
+
+    try:
+        # Validate input file
+        if not FileUtils.validate_fasta(input_path):
+            raise ValueError(f"Invalid FASTA file: {input_path}")
+
+        # Get sequence count
+        seq_count = FileUtils.count_sequences(input_path)
+        print(f"Processing {seq_count} sequences...\n")
+
+        # Initialize analyzer
+        threads = config.get('tools.diamond.threads', 4)
+        evalue = config.get('tools.diamond.evalue', 1e-5)
+        analyzer = AntibioticAnalyzer(
+            config=config,
+            cpus=threads,
+            evalue=evalue,
+        )
+
+        # Start analysis
+        start_time = time.time()
+        print("Starting antibiotic resistance prediction...")
+        print("Note: This runs DIAMOND blastp against 5 methanogen reference genomes\n")
+
+        results = analyzer.predict_antibiotics(
+            input_file=input_path,
+            output_prefix=output_prefix,
+        )
+
+        end_time = time.time()
+        analysis_time = end_time - start_time
+
+        # Print summary
+        print("\n" + "=" * 60)
+        print("Antibiotic Resistance Prediction Summary")
+        print("=" * 60)
+
+        if results.get('status') == 'success':
+            # Print AAI results
+            aai_results = results.get('aai_results', {})
+            if aai_results:
+                print("\nAAI against reference genomes:")
+                for ref_file in sorted(aai_results.keys()):
+                    aai = aai_results[ref_file]
+                    details = results.get('aai_details', {}).get(ref_file, {})
+                    nhits = details.get('num_hits', 0)
+                    nquery = details.get('num_queries', 0)
+                    print(f"  {ref_file}: {aai:.2f}% ({nhits}/{nquery} hits)")
+
+            # Print recommendations
+            recommended = results.get('recommended_antibiotics', [])
+            print("\nRecommended Antibiotics:")
+            if recommended:
+                for ab in recommended:
+                    print(f"  -> {ab}")
+            else:
+                print("  No matching antibiotic recommendations")
+
+            # Print rule details
+            all_rules = results.get('all_rules', [])
+            if all_rules:
+                print("\nRule Evaluation:")
+                for rule_result in all_rules:
+                    status = 'MATCHED' if rule_result['satisfied'] else 'NOT MATCHED'
+                    print(f"  [{status}] {rule_result['name']}")
+                    for detail in rule_result['details']:
+                        print(f"    {detail}")
+
+            output_file = results.get('output_file')
+            if output_file:
+                print(f"\nResults saved to: {output_file}")
+        else:
+            print(f"Prediction failed: {results.get('error', 'Unknown error')}")
+
+        print(f"\nAnalysis time: {analysis_time:.2f} seconds")
+        print("=" * 60)
+
+        logger.info(f"Antibiotic prediction completed in {analysis_time:.2f} seconds")
+
+    except Exception as e:
+        logger.error(f"Antibiotic prediction failed: {str(e)}")
         raise
