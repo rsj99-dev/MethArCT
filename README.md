@@ -16,7 +16,7 @@ Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methard
 - **Salinity Prediction**: Microbial salinity adaptation prediction based on amino acid composition features using SuSha ensemble learning model
 - **Temperature Prediction**: Optimal Growth Temperature (OGT) prediction — requires Tome tool
 - **pH Prediction**: Growth pH preference prediction (optimum, maximum, minimum) based on genome-wide amino acid composition features using GenomeSpot Lasso regression models
-- **Antibiotic Resistance Prediction**: Antibiotic recommendation based on Average Amino Acid Identity (AAI) comparison against five methanogen reference genomes using DIAMOND blastp. Supports prediction of Bacitracin, Tunicamycin, and Vanadate resistance.
+- **Antibiotic Resistance Prediction**: Supports prediction of Bacitracin, Tunicamycin, and Vanadate resistance.
 - **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 — requires CheckM2 tool
 
 ## System Requirements
