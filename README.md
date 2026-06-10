@@ -2,7 +2,7 @@
 
 ## Overview
 
-MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, pH preference, and cultivability.
+MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, pH preference, antibiotic resistance, and cultivability.
 
 Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
@@ -16,6 +16,7 @@ Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methard
 - **Salinity Prediction**: Microbial salinity adaptation prediction based on amino acid composition features using SuSha ensemble learning model
 - **Temperature Prediction**: Optimal Growth Temperature (OGT) prediction — requires Tome tool
 - **pH Prediction**: Growth pH preference prediction (optimum, maximum, minimum) based on genome-wide amino acid composition features using GenomeSpot Lasso regression models
+- **Antibiotic Resistance Prediction**: Supports prediction of Bacitracin, Tunicamycin, and Vanadate resistance.
 - **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 — requires CheckM2 tool
 
 ## System Requirements
@@ -63,6 +64,8 @@ pip install -e .
 conda install -c bioconda diamond
 ```
 
+> **Windows Note**: If `conda install diamond` fails, manually download `diamond.exe` from [Diamond Releases](https://github.com/bbuchfink/diamond/releases) and place it in the **MethArCT-main root directory**.
+
 ### Step 4: Verify Installation
 ```bash
 # Test core functionality
@@ -91,7 +94,7 @@ Extract "checkm2_db.zip" to the root directory of the MethArCT folder.
 metharct diamond "protein.faa" -o results/
 
 # Comprehensive analysis (skip optional tools)
-metharct comprehensive "protein.faa" -o results/ --skip-tome --skip-checkm2
+metharct comprehensive "protein.faa" -o results/ --skip-tome --skip-checkm2 --skip-antibiotic
 ```
 
 **Full Analysis (with optional tools)**:
@@ -102,6 +105,7 @@ metharct comprehensive "protein.faa" -o results/
 # Run optional analyses separately
 metharct susha "protein.faa" -o results/         # Salinity prediction
 metharct ph "protein.faa" -o results/            # pH preference prediction
+metharct antibiotic "protein.faa" -o results/    # Antibiotic resistance prediction
 metharct tome "protein.faa" -o results/          # Requires Tome
 metharct checkm2 "genome.fasta" -o results/      # Requires CheckM2
 ```
@@ -114,6 +118,9 @@ analyzer = MethArCTAnalyzer()
 
 # Core functionality only (Diamond analysis)
 results = analyzer.analyze_diamond('protein_sequences.faa')
+
+# Antibiotic resistance prediction
+results = analyzer.analyze_antibiotic('protein_sequences.faa')
 
 # Full analysis (if optional tools are installed)
 results = analyzer.comprehensive_analysis('protein_sequences.faa')
@@ -134,6 +141,9 @@ print(results)
 - `[filename]_diamond_summary.csv` — Metabolic pathway summary
 - `[filename]_diamond_results.json` — Detailed analysis results
 - `[filename]_*_diamond.tsv` — Detailed alignment results for each pathway
+
+**Antibiotic Resistance Prediction Output**:
+- `antibiotic_selection_results.tsv` — AAI values, rule evaluation status, and recommended antibiotics
 
 **Comprehensive Analysis Report**:
 - `[filename]_integrated_summary.csv` — Integrated assessment results
@@ -166,28 +176,28 @@ conda install -c bioconda diamond
 diamond --help
 ```
 
+**Windows: Diamond not found**:
+If conda install fails, manually download `diamond.exe` and place it in the MethArCT root directory:
+1. Visit https://github.com/bbuchfink/diamond/releases
+2. Download the latest `diamond-windows.zip` and extract `diamond.exe`
+3. Place `diamond.exe` in the MethArCT-main root folder
+4. Re-run the analysis command
+
 **pH prediction module not available**:
 ```bash
 pip install hmmlearn>=0.3.0
 ```
 
-### Runtime Issues
-
-**Filename with special characters**:
+**SuSha salinity prediction fails with module/import errors**:
+The SuSha ensemble model requires `imbalanced-learn`. Make sure it is installed:
 ```bash
-# Wrong
-metharct diamond protein.faa -o results/
-
-# Correct
-metharct diamond "protein.faa" -o results/
+pip install imbalanced-learn>=0.10.0
 ```
 
-**WSL Configuration**:
-```bash
-wsl --install
-wsl
-conda install -c bioconda tome checkm2
-```
+## LoongArch Support
+
+> **Note**: The LoongArch branch currently supports only the following processors:
+> Loongson 3A/B/C/D 5000 & 6000 series, 2K2000, and 2K3000/3B6000M.
 
 ## Project Structure
 
@@ -196,6 +206,7 @@ MethArCT/
 ├── metharct/                       # Main package
 │   ├── cli/                        # Command line interface
 │   ├── core/                       # Core analysis modules
+│   │   ├── antibiotic_analyzer.py  # Antibiotic resistance prediction (AAI-based)
 │   │   ├── susha/                  # SuSha salinity prediction (embedded)
 │   │   └── ph_predictor/           # pH prediction engine (embedded, GenomeSpot-based)
 │   │       ├── models/             # Pre-trained Lasso regression models
@@ -204,6 +215,7 @@ MethArCT/
 ├── Tome-1.1.0/                     # Tome OGT prediction module
 ├── data/                           # Reference databases
 │   ├── databases/                  # Diamond databases
+│   │   └── kangshengsu/            # Methanogen reference genomes for antibiotic prediction
 │   ├── methane/                    # Methane metabolism genes
 │   ├── nitrogen/                   # Nitrogen metabolism genes
 │   └── sulfur/                     # Sulfur metabolism genes
