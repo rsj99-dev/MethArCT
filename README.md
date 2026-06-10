@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="MethArCT - Culturomics analysis" width="400"/>
+</p>
+
 # MethArCT - Methanogenic Archaeal Culturomics Toolkit
 
 ## Overview
