@@ -188,6 +188,17 @@ If conda install fails, manually download `diamond.exe` and place it in the Meth
 pip install hmmlearn>=0.3.0
 ```
 
+**SuSha salinity prediction fails with module/import errors**:
+The SuSha ensemble model requires `imbalanced-learn`. Make sure it is installed:
+```bash
+pip install imbalanced-learn>=0.10.0
+```
+
+## LoongArch Support
+
+> **Note**: The LoongArch branch currently supports only the following processors:
+> Loongson 3A/B/C/D 5000 & 6000 series, 2K2000, and 2K3000/3B6000M.
+
 ## Project Structure
 
 ```
