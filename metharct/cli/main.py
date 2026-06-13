@@ -82,7 +82,7 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     parser.add_argument(
         '--version',
         action='version',
-        version='MethArCT 0.5.5'
+        version='MethArCT 0.6.0'
     )
     
     # Create subparsers for different commands

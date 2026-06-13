@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="MethArCT - Culturomics analysis" width="400"/>
+</p>
+
 # MethArCT - Methanogenic Archaeal Culturomics Toolkit
 
 ## Overview
@@ -225,7 +229,15 @@ MethArCT/
 
 ## License
 
-This project is licensed under the MIT License — see the LICENSE file for details.
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)** — see the [LICENSE](LICENSE) file for details.
+
+**License history:**
+- Versions **≤ 0.5.5** were released under the **MIT License** — see [LICENSE-MIT](LICENSE-MIT) for the original terms.
+- Starting from version **0.6.0**, the project is relicensed under **GPL-3.0** to comply with GPL-3.0 licensed dependencies (Tome, CheckM2).
+
+**Third-party components:**
+- **Tome** (OGT prediction) — GPL-3.0
+- **CheckM2** (genome quality assessment) — GPL-3.0
 
 ## Citation
 

@@ -162,13 +162,33 @@ def comprehensive_command(input_path: str,
                 if ab_result.get('status') == 'failed':
                     print(f"\nAntibiotic Resistance Prediction: FAILED ({ab_result.get('error', 'Unknown error')})")
 
+            # Print energy metabolism completeness summary
+            energy_metabolism = integrated.get('energy_metabolism', {})
+            if energy_metabolism:
+                print("\nEnergy Metabolism Pathway Completeness:")
+                category_labels = {
+                    'methane': 'Methane metabolism',
+                    'sulfur': 'Sulfur metabolism',
+                    'nitrogen': 'Nitrogen metabolism'
+                }
+                for cat_key, label in category_labels.items():
+                    cat_data = energy_metabolism.get(cat_key, {})
+                    complete_list = cat_data.get('complete', [])
+                    total = cat_data.get('total_count', 0)
+                    complete_count = cat_data.get('complete_count', 0)
+                    if complete_list:
+                        names = [p['name'] for p in complete_list]
+                        print(f"  {label} ({complete_count}/{total} complete): {', '.join(names)}")
+                    else:
+                        print(f"  {label} (0/{total} complete): no complete pathway detected")
+
             if 'recommendations' in integrated and integrated['recommendations']:
                 print("\nKey Recommendations:")
-                for i, rec in enumerate(integrated['recommendations'][:8], 1):
+                for i, rec in enumerate(integrated['recommendations'][:10], 1):
                     print(f"  {i}. {rec}")
 
-                if len(integrated['recommendations']) > 8:
-                    print(f"  ... and {len(integrated['recommendations']) - 8} more (see detailed report)")
+                if len(integrated['recommendations']) > 10:
+                    print(f"  ... and {len(integrated['recommendations']) - 10} more (see detailed report)")
             
             # Print amino acid biosynthesis summary
             aa_data = integrated.get('amino_acid_biosynthesis', {})

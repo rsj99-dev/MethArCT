@@ -1,6 +1,7 @@
 # Include documentation
 include README.md
 include LICENSE
+include LICENSE-MIT
 
 # Include configuration files
 include metharct_config.yaml

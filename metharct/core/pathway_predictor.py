@@ -275,6 +275,7 @@ class PathwayPredictor:
         """
         integrated = {
             'metabolic_profile': {},
+            'energy_metabolism': {},
             'environmental_adaptation': {},
             'cultivability_assessment': {},
             'overall_assessment': {},
@@ -285,8 +286,12 @@ class PathwayPredictor:
         if 'diamond' in analysis_results and 'status' not in analysis_results['diamond']:
             diamond_data = analysis_results['diamond']
             
-            # Metabolic pathways
-            if 'pathway_analysis' in diamond_data:
+            # Metabolic pathways - build energy metabolism summary from pathway_results
+            if 'pathway_results' in diamond_data:
+                integrated['energy_metabolism'] = self._build_energy_metabolism_summary(
+                    diamond_data['pathway_results']
+                )
+            elif 'pathway_analysis' in diamond_data:
                 integrated['metabolic_profile'] = self._process_metabolic_pathways(
                     diamond_data['pathway_analysis']
                 )
@@ -450,6 +455,79 @@ class PathwayPredictor:
         
         return metabolic_profile
     
+    def _build_energy_metabolism_summary(self, pathway_results: Dict) -> Dict:
+        """
+        Build energy metabolism completeness summary from diamond pathway_results
+        
+        Args:
+            pathway_results: Diamond analyzer pathway results dict
+            
+        Returns:
+            Dict with methane/sulfur/nitrogen completeness info
+        """
+        methane_keys = [
+            'CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4',
+            'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4',
+            'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
+            'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis',
+            'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'
+        ]
+        sulfur_keys = ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR']
+        nitrogen_keys = ['ANR', 'DEN', 'DNR', 'NIT']
+
+        pathway_names = self.config.get('pathway_names', {})
+        completeness_threshold = 80.0  # % threshold for "complete"
+
+        def _collect(keys):
+            pathways = []
+            complete = []
+            for k in keys:
+                if k in pathway_results:
+                    data = pathway_results[k]
+                    # Methane uses low_completeness; sulfur/nitrogen use max(high, low)
+                    if k in methane_keys:
+                        completeness = data.get('low_completeness_percentage', 0)
+                    else:
+                        completeness = max(
+                            data.get('high_completeness_percentage', 0),
+                            data.get('low_completeness_percentage', 0)
+                        )
+                    name = pathway_names.get(k, k)
+                    info = {
+                        'key': k,
+                        'name': name,
+                        'completeness': completeness
+                    }
+                    pathways.append(info)
+                    if completeness >= completeness_threshold:
+                        complete.append(info)
+            return pathways, complete
+
+        methane_all, methane_complete = _collect(methane_keys)
+        sulfur_all, sulfur_complete = _collect(sulfur_keys)
+        nitrogen_all, nitrogen_complete = _collect(nitrogen_keys)
+
+        return {
+            'methane': {
+                'pathways': methane_all,
+                'complete': methane_complete,
+                'complete_count': len(methane_complete),
+                'total_count': len(methane_all)
+            },
+            'sulfur': {
+                'pathways': sulfur_all,
+                'complete': sulfur_complete,
+                'complete_count': len(sulfur_complete),
+                'total_count': len(sulfur_all)
+            },
+            'nitrogen': {
+                'pathways': nitrogen_all,
+                'complete': nitrogen_complete,
+                'complete_count': len(nitrogen_complete),
+                'total_count': len(nitrogen_all)
+            }
+        }
+
     def _calculate_pathway_confidence(self, pathway_info: Dict) -> float:
         """
         Calculate confidence score for a pathway
@@ -718,6 +796,28 @@ class PathwayPredictor:
         sulfur_metabolism = metabolic_profile.get('sulfur_metabolism', {})
         if sulfur_metabolism.get('pathway_count', 0) > 0:
             recommendations.append("Consider sulfur-containing compounds in media")
+
+        # Energy metabolism completeness summary (methane / sulfur / nitrogen)
+        energy_metabolism = integrated_data.get('energy_metabolism', {})
+        if energy_metabolism:
+            category_labels = {
+                'methane': 'Methane metabolism',
+                'sulfur': 'Sulfur metabolism',
+                'nitrogen': 'Nitrogen metabolism'
+            }
+            summary_parts = []
+            for cat_key, label in category_labels.items():
+                cat_data = energy_metabolism.get(cat_key, {})
+                complete_list = cat_data.get('complete', [])
+                if complete_list:
+                    names = [p['name'] for p in complete_list]
+                    summary_parts.append(
+                        f"{label} - complete: {', '.join(names)}"
+                    )
+                else:
+                    summary_parts.append(f"{label} - no complete pathway detected")
+            if summary_parts:
+                recommendations.append("Energy metabolism: " + "; ".join(summary_parts))
         
         # Cultivation potential recommendations
         cultivability = integrated_data.get('cultivability_assessment', {})
@@ -831,6 +931,29 @@ class PathwayPredictor:
                     f.write("-" * 15 + "\n")
                     for i, rec in enumerate(recommendations, 1):
                         f.write(f"{i}. {rec}\n")
+                    f.write("\n")
+
+            # Energy metabolism completeness
+            if 'integrated_analysis' in results:
+                energy_metabolism = results['integrated_analysis'].get('energy_metabolism', {})
+                if energy_metabolism:
+                    f.write("Energy Metabolism Pathway Completeness:\n")
+                    f.write("-" * 40 + "\n")
+                    category_labels = {
+                        'methane': 'Methane metabolism',
+                        'sulfur': 'Sulfur metabolism',
+                        'nitrogen': 'Nitrogen metabolism'
+                    }
+                    for cat_key, label in category_labels.items():
+                        cat_data = energy_metabolism.get(cat_key, {})
+                        complete_list = cat_data.get('complete', [])
+                        total = cat_data.get('total_count', 0)
+                        complete_count = cat_data.get('complete_count', 0)
+                        if complete_list:
+                            names = [p['name'] for p in complete_list]
+                            f.write(f"  {label} ({complete_count}/{total} complete): {', '.join(names)}\n")
+                        else:
+                            f.write(f"  {label} (0/{total} complete): no complete pathway detected\n")
                     f.write("\n")
             
             # Individual analysis summaries

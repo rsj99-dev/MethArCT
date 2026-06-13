@@ -7,14 +7,14 @@ A comprehensive bioinformatics tool for analyzing metabolic pathways
 in methanogenic archaea using Diamond BLAST and other analysis tools.
 
 Author: MethArCT Development Team
-Version: 0.5.5
-License: MIT
+Version: 0.6.0
+License: GPL-3.0
 """
 
-__version__ = "0.5.5"
+__version__ = "0.6.0"
 __author__ = "MethArCT Development Team"
 __email__ = "rsj1999@njtech.edu.cn"
-__license__ = "MIT"
+__license__ = "GPL-3.0"
 __description__ = "Methanogenic Archaea Metabolic Pathway Analysis Tool"
 
 # Import main components
@@ -81,7 +81,7 @@ def check_installation():
 # Package initialization message
 def _print_welcome():
     """Print welcome message when package is imported."""
-    print(f"Welcome to MethArCT v0.5.5")
+    print(f"Welcome to MethArCT v0.6.0")
     print("Methanogenic Archaea Metabolic Pathway Analysis Tool")
     print("For help and documentation, visit: https://github.com/rsj99-dev/MethArCT")
 
