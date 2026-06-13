@@ -20,6 +20,24 @@ from ..utils.logger import get_logger
 from ..utils.file_utils import FileUtils
 from ..utils.sequence_utils import SequenceUtils
 
+# ============================================================
+# Module-level constants: database category classifications
+# ============================================================
+METHANE_DATABASES = frozenset([
+    'CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4',
+    'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4',
+    'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
+    'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis',
+    'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis',
+])
+
+SULFUR_DATABASES = frozenset(['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
+
+NITROGEN_DATABASES = frozenset(['ANR', 'DEN', 'DNR', 'NIT'])
+
+CULTIVATION_DATABASE = 'CULTIVATION'
+
+
 class DiamondAnalyzer:
     """Diamond sequence alignment analyzer"""
     
@@ -254,7 +272,7 @@ class DiamondAnalyzer:
         )
         
         # Select E-value threshold based on database type
-        if db_name == 'CULTIVATION':
+        if db_name == CULTIVATION_DATABASE:
             search_evalue = self.CULTIVABILITY_E_VALUE_THRESHOLD
         else:
             search_evalue = self.LOW_E_VALUE_THRESHOLD
@@ -295,7 +313,7 @@ class DiamondAnalyzer:
                     )
                     
                     # Return different result structures based on database type
-                    if db_name == 'CULTIVATION':
+                    if db_name == CULTIVATION_DATABASE:
                         # Cultivability database only performs cultivability filtering
                         cultivability_hits = df[
                             (df['evalue'] <= self.CULTIVABILITY_E_VALUE_THRESHOLD) & 
@@ -312,11 +330,7 @@ class DiamondAnalyzer:
                     else:
                         # Metabolic pathway database performs dual threshold filtering
                         # Check if it's a methane metabolism pathway, if so use single threshold analysis
-                        if db_name in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
-                                     'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
-                                     'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                                     'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis',
-                                     'Methanol dismutation methanogenesis']:
+                        if db_name in METHANE_DATABASES:
                             # Methane metabolism pathway: single threshold analysis (only keep low threshold)
                             low_threshold_hits = df[
                                 (df['evalue'] <= self.LOW_E_VALUE_THRESHOLD) & 
@@ -326,6 +340,7 @@ class DiamondAnalyzer:
                             return {
                                 'database': db_name,
                                 'total_hits': len(df),
+                                'high_threshold_hits': pd.DataFrame(),
                                 'low_threshold_hits': low_threshold_hits,
                                 'output_file': output_file
                             }
@@ -351,22 +366,21 @@ class DiamondAnalyzer:
                         
                 else:
                     self.logger.info(f"No hits found for database: {db_name}")
-                    # Return corresponding empty DataFrame structure based on database type
-                    if db_name == 'CULTIVATION':
+                    # CULTIVATION uses a distinct field name; all other pathways share the unified structure
+                    if db_name == CULTIVATION_DATABASE:
                         return {
                             'database': db_name,
                             'total_hits': 0,
                             'cultivability_hits': pd.DataFrame(),
                             'output_file': output_file
                         }
-                    else:
-                        return {
-                            'database': db_name,
-                            'total_hits': 0,
-                            'high_threshold_hits': pd.DataFrame(),
-                            'low_threshold_hits': pd.DataFrame(),
-                            'output_file': output_file
-                        }
+                    return {
+                        'database': db_name,
+                        'total_hits': 0,
+                        'high_threshold_hits': pd.DataFrame(),
+                        'low_threshold_hits': pd.DataFrame(),
+                        'output_file': output_file
+                    }
             else:
                 self.logger.error(f"Diamond search failed for {db_name}: {result.stderr}")
                 return None
@@ -406,7 +420,7 @@ class DiamondAnalyzer:
             if result and result['total_hits'] > 0:
                 reference_count = self.reference_counts.get(db_name, 1)
                 
-                if db_name == 'CULTIVATION':
+                if db_name == CULTIVATION_DATABASE:
                     # Cultivability database processing
                     # Calculate how many different query sequences matched cultivability-related genes (deduplicated)
                     cultivability_matched = len(result['cultivability_hits']['qseqid'].drop_duplicates())
@@ -435,11 +449,7 @@ class DiamondAnalyzer:
                 else:
                     # Metabolic pathway database processing (dual threshold analysis)
                     # Check if it's a methane metabolism pathway, if so use single threshold analysis
-                    if db_name in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
-                                 'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
-                                 'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                                 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis',
-                                 'Methanol dismutation methanogenesis']:
+                    if db_name in METHANE_DATABASES:
                         # Methane metabolism pathway: single threshold analysis (only keep low threshold)
                         # Note: Homologous genes (e.g., FwdF/FwdG/FwdH, Hmd/Mtd) have similar sequences but represent different gene functions and should be counted separately
                         low_threshold_matched = len(result['low_threshold_hits'].drop_duplicates(subset=['sseqid']))
@@ -928,16 +938,13 @@ class DiamondAnalyzer:
         for db_name, pathway_data in results['pathway_results'].items():
             # Determine metabolic pathway type
             pathway_type = 'Other'
-            if db_name in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
-                         'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
-                         'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                         'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis']:
+            if db_name in METHANE_DATABASES:
                 pathway_type = 'Methane'
-            elif db_name in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR']:
+            elif db_name in SULFUR_DATABASES:
                 pathway_type = 'Sulfur'
-            elif db_name in ['ANR', 'DEN', 'DNR', 'NIT']:
+            elif db_name in NITROGEN_DATABASES:
                 pathway_type = 'Nitrogen'
-            elif db_name == 'CULTIVATION':
+            elif db_name == CULTIVATION_DATABASE:
                 pathway_type = 'Cultivation'
             
             # Extract corresponding data based on metabolic pathway type
@@ -1013,19 +1020,12 @@ class DiamondAnalyzer:
         }
         
         # Categorize pathways - use consistent logic with _save_results method
-        methane_dbs = ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 
-                     'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 
-                     'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
-                     'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis']
-        sulfur_dbs = ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR']
-        nitrogen_dbs = ['ANR', 'DEN', 'DNR', 'NIT']
-        
         for db_name, pathway_data in results['pathway_results'].items():
-            if db_name in methane_dbs:
+            if db_name in METHANE_DATABASES:
                 pathway_summary['methane_pathways'][db_name] = pathway_data
-            elif db_name in sulfur_dbs:
+            elif db_name in SULFUR_DATABASES:
                 pathway_summary['sulfur_pathways'][db_name] = pathway_data
-            elif db_name in nitrogen_dbs:
+            elif db_name in NITROGEN_DATABASES:
                 pathway_summary['nitrogen_pathways'][db_name] = pathway_data
             else:
                 pathway_summary['other_features'][db_name] = pathway_data

@@ -23,6 +23,16 @@ Access MethArCT v0.1 online at [http://methardb.cn/tools/diamond](http://methard
 - **Antibiotic Resistance Prediction**: Supports prediction of Bacitracin, Tunicamycin, and Vanadate resistance.
 - **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 — requires CheckM2 tool
 
+## Quick Start
+
+```bash
+# 1. Install MethArCT
+pip install .
+
+# 2. Run comprehensive analysis
+metharct comprehensive "protein.faa" -o results/
+```
+
 ## System Requirements
 
 ### Basic Requirements
