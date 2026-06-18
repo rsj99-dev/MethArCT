@@ -17,7 +17,7 @@ from .core.antibiotic_analyzer import AntibioticAnalyzer
 from .core.pathway_predictor import PathwayPredictor
 from .utils.config import Config
 from .utils.logger import get_logger
-from .utils.file_utils import FileUtils
+from .utils.file_utils import FileUtils, NumpyEncoder
 
 
 class MethArCTAnalyzer:
@@ -137,7 +137,7 @@ class MethArCTAnalyzer:
             # Save comprehensive results
             results_file = os.path.join(output_dir, 'comprehensive_results.json')
             with open(results_file, 'w', encoding='utf-8') as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
+                json.dump(results, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
                 
             self.logger.info(f"Comprehensive analysis completed, results saved to: {results_file}")
             

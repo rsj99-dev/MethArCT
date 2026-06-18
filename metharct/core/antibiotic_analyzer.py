@@ -177,7 +177,12 @@ class AntibioticAnalyzer:
         ]
 
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True,
+                          timeout=300)  # 5 min timeout for makedb
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"diamond makedb timed out for {ref_faa}"
+            )
         except FileNotFoundError:
             raise RuntimeError(
                 "DIAMOND not found. Please install DIAMOND "
@@ -224,7 +229,12 @@ class AntibioticAnalyzer:
         ]
 
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True,
+                          timeout=600)  # 10 min timeout for blastp
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                "diamond blastp timed out"
+            )
         except FileNotFoundError:
             raise RuntimeError(
                 "DIAMOND not found. Please install DIAMOND "

@@ -11,9 +11,6 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from metharct.core import (
     DiamondAnalyzer,
     TomeAnalyzer,

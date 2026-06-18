@@ -35,15 +35,14 @@ def read_requirements():
 
 # Get version information
 def get_version():
-    # For this release, version is hardcoded to 0.6.0
-    # Original dynamic read is commented out below
-    # version_file = os.path.join("metharct", "__init__.py")
-    # if os.path.exists(version_file):
-    #     with open(version_file, "r", encoding="utf-8") as f:
-    #         for line in f:
-    #             if line.startswith("__version__"):
-    #                 return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.6.0"
+    """Read version from metharct/__init__.py dynamically."""
+    version_file = os.path.join("metharct", "__init__.py")
+    if os.path.exists(version_file):
+        with open(version_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("__version__"):
+                    return line.split("=")[1].strip().strip('"').strip("'")
+    return "0.6.2"
 
 setup(
     name="metharct",

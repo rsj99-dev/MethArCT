@@ -7,30 +7,38 @@ A comprehensive bioinformatics tool for analyzing metabolic pathways
 in methanogenic archaea using Diamond BLAST and other analysis tools.
 
 Author: MethArCT Development Team
-Version: 0.6.0
+Version: 0.6.2
 License: GPL-3.0
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.2"
 __author__ = "MethArCT Development Team"
 __email__ = "rsj1999@njtech.edu.cn"
 __license__ = "GPL-3.0"
 __description__ = "Methanogenic Archaea Metabolic Pathway Analysis Tool"
 
-# Import main components
-from .core.diamond_analyzer import DiamondAnalyzer
-from .core.tome_analyzer import TomeAnalyzer
-from .core.checkm2_analyzer import CheckM2Analyzer
-from .core.antibiotic_analyzer import AntibioticAnalyzer
-from .core.pathway_predictor import PathwayPredictor
-from .core.ph_analyzer import PHAnalyzer
-from .utils.config import Config
-from .utils.logger import setup_logger
+def __getattr__(name):
+    """Lazy import of heavy modules to avoid import errors when dependencies are missing."""
+    _lazy_imports = {
+        'DiamondAnalyzer': '.core.diamond_analyzer',
+        'TomeAnalyzer': '.core.tome_analyzer',
+        'CheckM2Analyzer': '.core.checkm2_analyzer',
+        'AntibioticAnalyzer': '.core.antibiotic_analyzer',
+        'PathwayPredictor': '.core.pathway_predictor',
+        'PHAnalyzer': '.core.ph_analyzer',
+        'Config': '.utils.config',
+        'setup_logger': '.utils.logger',
+    }
+    if name in _lazy_imports:
+        import importlib
+        module = importlib.import_module(_lazy_imports[name], __package__)
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Define public API
 __all__ = [
     "DiamondAnalyzer",
-    "TomeAnalyzer", 
+    "TomeAnalyzer",
     "CheckM2Analyzer",
     "AntibioticAnalyzer",
     "PathwayPredictor",
@@ -44,30 +52,19 @@ __all__ = [
     "__description__",
 ]
 
-# Package metadata
-PACKAGE_NAME = "metharct"
-PACKAGE_VERSION = __version__
-PACKAGE_AUTHOR = __author__
-PACKAGE_EMAIL = __email__
-PACKAGE_LICENSE = __license__
-PACKAGE_DESCRIPTION = __description__
-
-# Version info
-VERSION_INFO = {
-    "version": __version__,
-    "author": __author__,
-    "email": __email__,
-    "license": __license__,
-    "description": __description__,
-}
-
 def get_version():
     """Get package version."""
     return __version__
 
 def get_info():
     """Get package information."""
-    return VERSION_INFO.copy()
+    return {
+        "version": __version__,
+        "author": __author__,
+        "email": __email__,
+        "license": __license__,
+        "description": __description__,
+    }
 
 def check_installation():
     """Check if MethArCT is properly installed."""
@@ -77,13 +74,3 @@ def check_installation():
         return True
     except ImportError:
         return False
-
-# Package initialization message
-def _print_welcome():
-    """Print welcome message when package is imported."""
-    print(f"Welcome to MethArCT v0.6.0")
-    print("Methanogenic Archaea Metabolic Pathway Analysis Tool")
-    print("For help and documentation, visit: https://github.com/rsj99-dev/MethArCT")
-
-# Optional: Print welcome message (can be disabled)
-# _print_welcome()

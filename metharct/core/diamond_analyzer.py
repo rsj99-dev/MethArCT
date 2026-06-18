@@ -19,6 +19,7 @@ from ..utils.config import Config
 from ..utils.logger import get_logger
 from ..utils.file_utils import FileUtils
 from ..utils.sequence_utils import SequenceUtils
+from .pathway_strategies import evaluate_pathway
 
 # ============================================================
 # Module-level constants: database category classifications
@@ -59,8 +60,9 @@ class DiamondAnalyzer:
         self.identity_threshold = self.config.get('tools.diamond.identity_threshold', 30.0)
         
         # Dual threshold analysis parameters
-        self.HIGH_E_VALUE_THRESHOLD = 1e-100
-        self.HIGH_BITSCORE_THRESHOLD = 400
+        # HIGH_E_VALUE_THRESHOLD is now dynamic based on reference sequence length
+        # Fallback E-value when average length cannot be determined:
+        self._FALLBACK_HIGH_E_VALUE_THRESHOLD = 1e-100
         self.LOW_E_VALUE_THRESHOLD = 1e-5
         self.LOW_BITSCORE_THRESHOLD = 40
         self.HIGH_QUALITY_THRESHOLD = 60
@@ -81,12 +83,19 @@ class DiamondAnalyzer:
         # Database information
         self.pathway_names = self.config.get('pathway_names', {})
         self.reference_counts = self.config.get('reference_sequence_counts', {})
+        self._reference_avg_lengths = {}  # db_name -> average amino acid length
         
         # Check tool availability
         self._check_diamond_availability()
         
-        # Prepare databases
-        self._prepare_databases()
+        # Database preparation is deferred to analyze_sequence() for lazy initialization
+        self._databases_prepared = False
+    
+    def _ensure_databases(self):
+        """Ensure databases are prepared before analysis (lazy initialization)."""
+        if not self._databases_prepared:
+            self._prepare_databases()
+            self._databases_prepared = True
     
     def _check_diamond_availability(self) -> bool:
         """
@@ -136,6 +145,15 @@ class DiamondAnalyzer:
         db_paths = self.config.get_all_database_paths()
         
         for db_name, fasta_path in db_paths.items():
+            # Compute average sequence length for dynamic threshold (all databases)
+            if os.path.exists(fasta_path):
+                avg_len = self._compute_avg_sequence_length(fasta_path)
+                if avg_len > 0:
+                    self._reference_avg_lengths[db_name] = avg_len
+                    self.logger.debug(
+                        f"{db_name}: avg sequence length = {avg_len:.1f} aa"
+                    )
+            
             db_file = os.path.join(self.db_dir, f"{db_name}.dmnd")
             
             # Check if database exists and is newer than source file
@@ -151,6 +169,73 @@ class DiamondAnalyzer:
             else:
                 self.logger.warning(f"Reference file not found: {fasta_path}")
     
+    def _compute_avg_sequence_length(self, fasta_path: str) -> float:
+        """
+        Compute average amino acid sequence length from a FASTA file.
+        
+        Args:
+            fasta_path: Path to the FASTA file.
+            
+        Returns:
+            Average sequence length, or 0 if the file cannot be parsed.
+        """
+        try:
+            lengths = []
+            with open(fasta_path, 'r') as f:
+                current_len = 0
+                in_seq = False
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('>'):
+                        if in_seq and current_len > 0:
+                            lengths.append(current_len)
+                        current_len = 0
+                        in_seq = True
+                    elif in_seq:
+                        current_len += len(line)
+                if in_seq and current_len > 0:
+                    lengths.append(current_len)
+            return sum(lengths) / len(lengths) if lengths else 0.0
+        except Exception as e:
+            self.logger.warning(f"Failed to compute avg length for {fasta_path}: {e}")
+            return 0.0
+    
+    def _get_dynamic_high_evalue(self, db_name: str) -> float:
+        """
+        Get dynamic high-threshold E-value based on average reference sequence length.
+        
+        Mapping (average amino acid length → log10(E-value) threshold):
+            >550  → 1e-140
+            >500  → 1e-100
+            >200  → 1e-25
+            >100  → 1e-10
+            >50   → 1e-5
+        
+        Args:
+            db_name: Database name.
+            
+        Returns:
+            Dynamic E-value threshold for the high-strictness tier.
+        """
+        avg_len = self._reference_avg_lengths.get(db_name, 0)
+        if avg_len > 550:
+            return 1e-140
+        elif avg_len > 500:
+            return 1e-100
+        elif avg_len > 200:
+            return 1e-25
+        elif avg_len > 100:
+            return 1e-10
+        elif avg_len > 50:
+            return 1e-5
+        else:
+            # Fallback to original fixed threshold when length is unknown
+            self.logger.warning(
+                f"{db_name}: avg length {avg_len:.0f} too short or unknown, "
+                f"using fallback high E-value threshold"
+            )
+            return self._FALLBACK_HIGH_E_VALUE_THRESHOLD
+
     def _create_diamond_database(self, fasta_path: str, db_name: str) -> bool:
         """
         Create Diamond database from FASTA file
@@ -227,6 +312,9 @@ class DiamondAnalyzer:
         
         self.logger.info(f"Starting Diamond analysis for {input_file.name}")
         self.logger.info(f"Searching against {len(databases)} databases")
+        
+        # Ensure databases are prepared
+        self._ensure_databases()
         
         # Run Diamond searches
         search_results = {}
@@ -346,9 +434,14 @@ class DiamondAnalyzer:
                             }
                         else:
                             # Other metabolic pathways (sulfur, nitrogen) maintain dual threshold analysis
+                            # High threshold E-value is dynamic based on avg reference sequence length
+                            dynamic_high_evalue = self._get_dynamic_high_evalue(db_name)
+                            self.logger.debug(
+                                f"{db_name}: avg_len={self._reference_avg_lengths.get(db_name, 0):.0f}, "
+                                f"dynamic high E-value={dynamic_high_evalue:.2e}"
+                            )
                             high_threshold_hits = df[
-                                (df['evalue'] <= self.HIGH_E_VALUE_THRESHOLD) & 
-                                (df['bitscore'] >= self.HIGH_BITSCORE_THRESHOLD)
+                                df['evalue'] <= dynamic_high_evalue
                             ]
                             
                             low_threshold_hits = df[
@@ -452,374 +545,14 @@ class DiamondAnalyzer:
                     if db_name in METHANE_DATABASES:
                         # Methane metabolism pathway: single threshold analysis (only keep low threshold)
                         # Note: Homologous genes (e.g., FwdF/FwdG/FwdH, Hmd/Mtd) have similar sequences but represent different gene functions and should be counted separately
-                        low_threshold_matched = len(result['low_threshold_hits'].drop_duplicates(subset=['sseqid']))
-                        
-                        # For formate methanogenesis pathway, add special handling
-                        if db_name == 'JIASUAN-CH4':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== JIASUAN-CH4 pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching
-                            fwd_fgh_present = any(gene in unique_hits for gene in ['FwdF', 'FwdG', 'FwdH'])
-                            hmd_mtd_present = any(gene in unique_hits for gene in ['Hmd', 'Mtd'])
-                            
-                            # Check high-strict matching conditions for FdhA and FdhB genes
-                            fdhA_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'FdhA') &
-                                (result['low_threshold_hits']['bitscore'] > 380) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            fdhB_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'FdhB') &
-                                (result['low_threshold_hits']['bitscore'] > 380) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            fdhA_present = len(fdhA_hits) > 0
-                            fdhB_present = len(fdhB_hits) > 0
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"JIASUAN-CH4 key gene detection status:")
-                            self.logger.debug(f"  FwdF/FwdG/FwdH: {fwd_fgh_present}")
-                            self.logger.debug(f"  Hmd/Mtd: {hmd_mtd_present}")
-                            self.logger.debug(f"  FdhA: {fdhA_present} (hits: {len(fdhA_hits)})")
-                            self.logger.debug(f"  FdhB: {fdhB_present} (hits: {len(fdhB_hits)})")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Optimized evaluation logic: use weighted scoring method
-                            # Base gene coverage (weight 40%): number of detected genes
-                            base_score = min(len(unique_hits) / reference_count * 40, 40)
-                            
-                            # Key functional genes (weight 60%):
-                            # - FwdF/FwdG/FwdH (weight 15%)
-                            # - Hmd/Mtd (weight 15%)
-                            # - FdhA (weight 15%)
-                            # - FdhB (weight 15%)
-                            fwd_fgh_score = 15 if fwd_fgh_present else 0
-                            hmd_mtd_score = 15 if hmd_mtd_present else 0
-                            fdhA_score = 15 if fdhA_present else 0
-                            fdhB_score = 15 if fdhB_present else 0
-                            
-                            # Calculate total score
-                            total_score = base_score + fwd_fgh_score + hmd_mtd_score + fdhA_score + fdhB_score
-                            
-                            # Determine matched gene count based on score
-                            # If all key functional genes are satisfied, directly mark as 100% completeness
-                            if fwd_fgh_present and hmd_mtd_present and fdhA_present and fdhB_present:
-                                self.logger.debug(f"JIASUAN-CH4: All key functional genes satisfied, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            elif total_score >= 80:  # Score >= 80 considered pathway complete
-                                self.logger.debug(f"JIASUAN-CH4: Total score {total_score} >= 80, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            elif total_score >= 60:  # 60-79 use actual detection count
-                                self.logger.debug(f"JIASUAN-CH4: Total score {total_score} between 60-79, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                            else:  # Below 60 use actual detection count
-                                self.logger.debug(f"JIASUAN-CH4: Total score {total_score} < 60, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                        
-                        # For CO2 reduction methanogenesis pathway, add special handling
-                        elif db_name == 'CO2-CH4':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== CO2-CH4 pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching
-                            # CO2-CH4 pathway key genes are FwdF/FwdG/FwdH and Hmd/Mtd, no need for FdhA/FdhB
-                            fwd_fgh_present = any(gene in unique_hits for gene in ['FwdF', 'FwdG', 'FwdH'])
-                            hmd_mtd_present = any(gene in unique_hits for gene in ['Hmd', 'Mtd'])
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"CO2-CH4 key gene detection status:")
-                            self.logger.debug(f"  FwdF/FwdG/FwdH: {fwd_fgh_present}")
-                            self.logger.debug(f"  Hmd/Mtd: {hmd_mtd_present}")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Optimized evaluation logic: use weighted scoring method
-                            # Base gene coverage (weight 60%): number of detected genes
-                            base_score = min(len(unique_hits) / reference_count * 60, 60)
-                            
-                            # Key functional genes (weight 40%):
-                            # - FwdF/FwdG/FwdH (weight 20%)
-                            # - Hmd/Mtd (weight 20%)
-                            fwd_fgh_score = 20 if fwd_fgh_present else 0
-                            hmd_mtd_score = 20 if hmd_mtd_present else 0
-                            
-                            # Calculate total score
-                            total_score = base_score + fwd_fgh_score + hmd_mtd_score
-                            
-                            # Determine matched gene count based on score
-                            # If all key functional genes are satisfied, directly mark as 100% completeness
-                            if fwd_fgh_present and hmd_mtd_present:
-                                self.logger.debug(f"CO2-CH4: All key functional genes satisfied, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            elif total_score >= 80:  # Score >= 80 considered pathway complete
-                                self.logger.debug(f"CO2-CH4: Total score {total_score} >= 80, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            elif total_score >= 60:  # 60-79 use actual detection count
-                                self.logger.debug(f"CO2-CH4: Total score {total_score} between 60-79, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                            else:  # Below 60 use actual detection count
-                                self.logger.debug(f"CO2-CH4: Total score {total_score} < 60, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                        
-                        # For methanethiol methanogenesis pathway, add special handling
-                        elif db_name == 'JIALIUCHUN-CH4':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== JIALIUCHUN-CH4 pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching
-                            # Methanethiol-specific genes: MtsA1, MtsA2 (add strict matching conditions: bitscore > 200 and evalue <= 1e-100)
-                            mtsA1_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'MtsA1') &
-                                (result['low_threshold_hits']['bitscore'] > 200) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            mtsA2_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'MtsA2') &
-                                (result['low_threshold_hits']['bitscore'] > 200) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            mtsA1_present = len(mtsA1_hits) > 0
-                            mtsA2_present = len(mtsA2_hits) > 0
-                            
-                            # Methyl-coenzyme M reductase related genes: KYC55281.1, KYC55283.1, KYC55284.1, KYC55314.1
-                            mcr_genes = ['KYC55281.1', 'KYC55283.1', 'KYC55284.1', 'KYC55314.1']
-                            mcr_genes_present = [gene in unique_hits for gene in mcr_genes]
-                            mcr_genes_count = sum(mcr_genes_present)
-                            
-                            # Check if any 3 of the methyl-coenzyme M reductase related genes are matched
-                            mcr_3_present = mcr_genes_count >= 3
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"JIALIUCHUN-CH4 key gene detection status:")
-                            self.logger.debug(f"  MtsA1: {mtsA1_present} (hits: {len(mtsA1_hits)})")
-                            self.logger.debug(f"  MtsA2: {mtsA2_present} (hits: {len(mtsA2_hits)})")
-                            self.logger.debug(f"  Methyl-coenzyme M reductase gene matching: {mcr_genes_count}/4")
-                            self.logger.debug(f"  Any 3 methyl-coenzyme M reductase genes matched: {mcr_3_present}")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Output detailed MtsA1 and MtsA2 bitscore info for debugging
-                            if len(mtsA1_hits) > 0:
-                                self.logger.debug(f"  MtsA1 max bitscore: {mtsA1_hits['bitscore'].max()}")
-                            if len(mtsA2_hits) > 0:
-                                self.logger.debug(f"  MtsA2 max bitscore: {mtsA2_hits['bitscore'].max()}")
-                            
-                            # Determine matched gene count based on new strategy
-                            # If both MtsA1 and MtsA2 are matched, and any 3 of methyl-coenzyme M reductase related genes are matched, mark as 100% completeness
-                            if mtsA1_present and mtsA2_present and mcr_3_present:
-                                self.logger.debug(f"JIALIUCHUN-CH4: Key gene conditions satisfied, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            else:
-                                # When conditions not met, if MtsA1 doesn't meet strict conditions, exclude MtsA1 from actual detection count
-                                # Because MtsA1 is a key gene for methanethiol pathway, must meet strict conditions
-                                adjusted_hits = len(unique_hits)
-                                if not mtsA1_present:
-                                    # If MtsA1 doesn't meet conditions, subtract 1 from detection count (MtsA1 is essential gene)
-                                    adjusted_hits = max(0, len(unique_hits) - 1)
-                                    self.logger.debug(f"JIALIUCHUN-CH4: MtsA1 doesn't meet strict conditions, adjusting detection count: {len(unique_hits)} -> {adjusted_hits}")
-                                else:
-                                    self.logger.debug(f"JIALIUCHUN-CH4: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = adjusted_hits
-                        
-                        # For glycine betaine methanogenesis pathway, add special handling
-                        elif db_name == 'Glycine betaine methanogenesis':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== Glycine betaine methanogenesis pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching
-                            # Glycine betaine methanogenesis pathway key genes: MtgB, dimethylamine_corrinoid_protein_3, MV10360
-                            mtgB_present = 'MtgB' in unique_hits
-                            dimethylamine_corrinoid_present = 'dimethylamine_corrinoid_protein_3' in unique_hits
-                            mv10360_present = 'MV10360' in unique_hits
-                            
-                            # Check if all key genes are matched
-                            all_key_genes_present = mtgB_present and dimethylamine_corrinoid_present and mv10360_present
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"Glycine betaine methanogenesis key gene detection status:")
-                            self.logger.debug(f"  MtgB: {mtgB_present}")
-                            self.logger.debug(f"  dimethylamine_corrinoid_protein_3: {dimethylamine_corrinoid_present}")
-                            self.logger.debug(f"  MV10360: {mv10360_present}")
-                            self.logger.debug(f"  All key genes matched: {all_key_genes_present}")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Determine matched gene count based on new strategy
-                            # If all 3 key genes are matched, mark as 100% completeness
-                            if all_key_genes_present:
-                                self.logger.debug(f"Glycine betaine methanogenesis: All key gene conditions satisfied, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            else:
-                                # When conditions not met, use actual detection count
-                                self.logger.debug(f"Glycine betaine methanogenesis: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                        
-                        # For methylthiopropionate methanogenesis pathway, add special handling
-                        elif db_name == 'Methylthiopropionate methanogenesis':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== Methylthiopropionate methanogenesis pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching, require bitscore > 100 and evalue <= 1e-5
-                            # Methylthiopropionate methanogenesis pathway key genes: mtpA1, mtsA1, mtpA2, mtsA2
-                            mtpA1_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'mtpA1') &
-                                (result['low_threshold_hits']['bitscore'] > 100) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-5)
-                            ]
-                            mtsA1_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'mtsA1') &
-                                (result['low_threshold_hits']['bitscore'] > 100) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-5)
-                            ]
-                            mtpA2_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'mtpA2') &
-                                (result['low_threshold_hits']['bitscore'] > 100) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-5)
-                            ]
-                            mtsA2_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'mtsA2') &
-                                (result['low_threshold_hits']['bitscore'] > 100) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-5)
-                            ]
-                            
-                            mtpA1_present = len(mtpA1_hits) > 0
-                            mtsA1_present = len(mtsA1_hits) > 0
-                            mtpA2_present = len(mtpA2_hits) > 0
-                            mtsA2_present = len(mtsA2_hits) > 0
-                            
-                            # Check if all key genes are matched
-                            all_key_genes_present = mtpA1_present and mtsA1_present and mtpA2_present and mtsA2_present
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"Methylthiopropionate methanogenesis key gene detection status:")
-                            self.logger.debug(f"  mtpA1: {mtpA1_present} (hits: {len(mtpA1_hits)})")
-                            self.logger.debug(f"  mtsA1: {mtsA1_present} (hits: {len(mtsA1_hits)})")
-                            self.logger.debug(f"  mtpA2: {mtpA2_present} (hits: {len(mtpA2_hits)})")
-                            self.logger.debug(f"  mtsA2: {mtsA2_present} (hits: {len(mtsA2_hits)})")
-                            self.logger.debug(f"  All key genes matched: {all_key_genes_present}")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Determine matched gene count based on new strategy
-                            # If all 4 key genes are matched (bitscore>100 and evalue<1e-5), mark as 100% completeness
-                            if all_key_genes_present:
-                                self.logger.debug(f"Methylthiopropionate methanogenesis: All key gene conditions satisfied, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            else:
-                                # When conditions not met, use actual detection count
-                                self.logger.debug(f"Methylthiopropionate methanogenesis: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                        
-                        # For tetramethylammonium methanogenesis pathway, add special handling
-                        elif db_name == 'Tetramethylammonium methanogenesis':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== Tetramethylammonium methanogenesis pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching, require bitscore > 200 and evalue <= 1e-100
-                            # Key genes for Tetramethylammonium methanogenesis pathway: MtqA/MT2, MtqB, MtqC
-                            mtqA_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'MtqA/MT2') &
-                                (result['low_threshold_hits']['bitscore'] > 200) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            mtqB_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'MtqB') &
-                                (result['low_threshold_hits']['bitscore'] > 200) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            mtqC_hits = result['low_threshold_hits'][
-                                (result['low_threshold_hits'].iloc[:, 1] == 'MtqC') &
-                                (result['low_threshold_hits']['bitscore'] > 200) &
-                                (result['low_threshold_hits']['evalue'] <= 1e-100)
-                            ]
-                            
-                            mtqA_present = len(mtqA_hits) > 0
-                            mtqB_present = len(mtqB_hits) > 0
-                            mtqC_present = len(mtqC_hits) > 0
-                            
-                            # Check if all key genes are matched
-                            all_key_genes_present = mtqA_present and mtqB_present and mtqC_present
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"Tetramethylammonium methanogenesis key gene detection status:")
-                            self.logger.debug(f"  MtqA/MT2: {mtqA_present} (hits: {len(mtqA_hits)})")
-                            self.logger.debug(f"  MtqB: {mtqB_present} (hits: {len(mtqB_hits)})")
-                            self.logger.debug(f"  MtqC: {mtqC_present} (hits: {len(mtqC_hits)})")
-                            self.logger.debug(f"  All key genes matched: {all_key_genes_present}")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Determine matched gene count based on new strategy
-                            # If all 3 key genes are matched (bitscore>200 and evalue<1e-100), mark as 100% completeness
-                            if all_key_genes_present:
-                                self.logger.debug(f"Tetramethylammonium methanogenesis: All key gene conditions satisfied, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            else:
-                                # When conditions not met, use actual detection count
-                                self.logger.debug(f"Tetramethylammonium methanogenesis: Key gene conditions not met, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                        
-                        # For methanol dismutation methanogenesis pathway, add special handling
-                        elif db_name == 'Methanol dismutation methanogenesis':
-                            # Debug info: confirm code is being executed
-                            self.logger.debug("=== Methanol dismutation methanogenesis pathway evaluation logic executing ===")
-                            
-                            # Get all unique matched gene names (second column)
-                            unique_hits = result['low_threshold_hits'].iloc[:, 1].unique()
-                            
-                            # Check key gene matching
-                            # Key genes for Methanol dismutation methanogenesis pathway: MvhA and elpA (one of the two genes matched is sufficient)
-                            mvhA_present = 'MvhA' in unique_hits
-                            elpA_present = 'elpA' in unique_hits
-                            
-                            # Check other gene matching (all genes except MvhA and elpA)
-                            # Other key genes for Methanol dismutation methanogenesis pathway: FwdA-FwdH, Ftr, Mch, Hmd, Mtd, elpB, elpC, etc.
-                            other_genes = ['FwdA', 'FwdB', 'FwdC', 'FwdD', 'FwdE', 'FwdF', 'FwdG', 'FwdH', 
-                                         'Ftr', 'Mch', 'Hmd', 'Mtd', 'elpB', 'elpC']
-                            other_genes_present = [gene in unique_hits for gene in other_genes]
-                            other_genes_count = sum(other_genes_present)
-                            
-                            # Check if all other genes are matched (except MvhA and elpA)
-                            all_other_genes_present = other_genes_count == len(other_genes)
-                            
-                            # Debug info: output key gene detection status
-                            self.logger.debug(f"Methanol dismutation methanogenesis key gene detection status:")
-                            self.logger.debug(f"  MvhA: {mvhA_present}")
-                            self.logger.debug(f"  elpA: {elpA_present}")
-                            self.logger.debug(f"  MvhA or elpA matched: {mvhA_present or elpA_present}")
-                            self.logger.debug(f"  Other genes matching: {other_genes_count}/{len(other_genes)}")
-                            self.logger.debug(f"  All other genes matched: {all_other_genes_present}")
-                            self.logger.debug(f"  Base gene coverage: {len(unique_hits)}/{reference_count}")
-                            
-                            # Determine matched gene count based on new strategy
-                            # If all other genes are matched, and one of MvhA/elpA is matched, mark as 100% completeness
-                            if all_other_genes_present and (mvhA_present or elpA_present):
-                                self.logger.debug(f"Methanol dismutation methanogenesis: All other genes matched and one of MvhA/elpA matched, using reference sequence count: {reference_count}")
-                                low_threshold_matched = reference_count
-                            else:
-                                # When conditions not met, use actual detection count
-                                self.logger.debug(f"Methanol dismutation methanogenesis: Conditions not met, using actual detection count: {len(unique_hits)}")
-                                low_threshold_matched = len(unique_hits)
-                            
-                            # Ensure completeness does not exceed 100%
-                            if low_threshold_matched > reference_count:
-                                self.logger.debug(f"Methanol dismutation methanogenesis: Detected gene count ({low_threshold_matched}) exceeds reference sequence count ({reference_count}), limited to 100%")
-                                low_threshold_matched = reference_count
-                        
+                        # Use data-driven strategy pattern for pathway evaluation
+                        low_threshold_matched = evaluate_pathway(
+                            db_name, result['low_threshold_hits'], reference_count, self.logger
+                        )
+                        # Cap matched count at reference count
+                        if low_threshold_matched > reference_count:
+                            low_threshold_matched = reference_count
+
                         low_completeness = (low_threshold_matched / reference_count) * 100
                         
                         # Ensure completeness percentage does not exceed 100%

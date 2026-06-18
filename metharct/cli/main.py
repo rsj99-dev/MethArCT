@@ -12,9 +12,6 @@ import os
 from pathlib import Path
 from typing import Optional
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 try:
     from metharct.utils.config import Config
     from metharct.utils.logger import setup_logger
@@ -79,10 +76,11 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         help='Path to configuration file (YAML format)'
     )
     
+    import metharct
     parser.add_argument(
         '--version',
         action='version',
-        version='MethArCT 0.6.0'
+        version=f'MethArCT {metharct.__version__}'
     )
     
     # Create subparsers for different commands
@@ -405,10 +403,10 @@ def _add_checkm2_args(parser: argparse.ArgumentParser):
     )
     
     parser.add_argument(
-        "-t", "--type",
-        choices=["fasta", "directory"],
-        default="fasta",
-        help="Input type: fasta file or directory (default: fasta)"
+        "-t", "--input-type",
+        choices=['fasta', 'directory'],
+        default='fasta',
+        help='Input type: single fasta file or directory of genomes (default: fasta)'
     )
     
     parser.add_argument(
@@ -426,13 +424,6 @@ def _add_checkm2_args(parser: argparse.ArgumentParser):
         "--use-wsl",
         action="store_true",
         help="Use WSL for CheckM2 (overrides config)"
-    )
-    
-    parser.add_argument(
-        "--input-type",
-        choices=['fasta', 'directory'],
-        default='fasta',
-        help='Input type: single fasta file or directory of genomes (default: fasta)'
     )
 
 def setup_logging(verbose: bool = False):

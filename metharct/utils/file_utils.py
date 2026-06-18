@@ -5,12 +5,36 @@ File handling utilities for MethArCT
 """
 
 import os
+import json
 import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Union, Iterator
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+import numpy as np
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """JSON encoder that handles NumPy types and pandas Timestamps."""
+
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        # pandas Timestamp
+        try:
+            import pandas as pd
+            if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+        except ImportError:
+            pass
+        return super().default(obj)
 
 class FileUtils:
     """Utility class for file operations"""
@@ -53,7 +77,7 @@ class FileUtils:
     @staticmethod
     def count_sequences(file_path: Union[str, Path]) -> int:
         """
-        Count number of sequences in FASTA file
+        Count number of sequences in FASTA file (fast: counts '>' lines only)
         
         Args:
             file_path: Path to FASTA file
@@ -62,8 +86,12 @@ class FileUtils:
             Number of sequences
         """
         try:
+            count = 0
             with open(file_path, 'r') as handle:
-                return sum(1 for _ in SeqIO.parse(handle, "fasta"))
+                for line in handle:
+                    if line.startswith('>'):
+                        count += 1
+            return count
         except Exception:
             return 0
     

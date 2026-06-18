@@ -1,0 +1,152 @@
+# MethArCT Default Configuration
+# This file is bundled with the package and loaded as the fallback default.
+
+tools:
+  diamond:
+    path: "diamond"
+    wsl_path: "wsl diamond"
+    use_wsl: false
+    threads: 4
+    evalue: 1.0e-5
+    max_target_seqs: 1
+    identity_threshold: 30.0
+  tome:
+    path: "tome"
+    wsl_path: "wsl tome"
+    use_wsl: false
+    threads: 4
+  checkm2:
+    path: "checkm2"
+    wsl_path: "wsl checkm2"
+    use_wsl: false
+    threads: 4
+  susha:
+    enabled: true
+  ph:
+    enabled: true
+  antibiotic:
+    enabled: true
+
+databases:
+  base_dir: "data/databases"
+  methane_pathways:
+    CO2-CH4: "methane/processed_CO2-CH4.fasta"
+    JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
+    JIACHUN-CH4: "methane/processed_JIACHUN-CH4.fasta"
+    JIALIUCHUN-CH4: "methane/processed_JIALIUCHUN-CH4.fasta"
+    YISUAN-CH4: "methane/processed_YISUAN-CH4.fasta"
+    C16-CH4: "methane/processed_C16-CH4.fasta"
+    CO-CH4: "methane/processed_CO-CH4.fasta"
+    JIASUAN-CH4: "methane/processed_JIASUAN-CH4.fasta"
+    JIAYANGJI-CH4: "methane/processed_JIAYANGJI-CH4.fasta"
+    ZHIFANGSUAN-CH4: "methane/processed_ZHIFANGSUAN-CH4.fasta"
+    2JIAAN-CH4: "methane/processed_2JIAAN-CH4.fasta"
+    3JIAAN-CH4: "methane/processed_3JIAAN-CH4.fasta"
+    Glycine betaine methanogenesis: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
+    Methylthiopropionate methanogenesis: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
+    Tetramethylammonium methanogenesis: "methane/四甲基铵产甲烷.fasta"
+    Methanol dismutation methanogenesis: "methane/processed_甲醇歧化产甲烷.fasta"
+  sulfur_pathways:
+    ASR: "sulfur/Assimilatory sulfate reduction.fasta"
+    SO: "sulfur/Sulfide oxidation.fasta"
+    SOX: "sulfur/Sulfur oxidation, SOX system.fasta"
+    S4I: "sulfur/Sulfur oxidation, tetrathionate intermediate (S4I) pathway.fasta"
+    SR: "sulfur/Sulfur reduction.fasta"
+    DSR: "sulfur/Dissimilatory sulfate reduction.fasta"
+  nitrogen_pathways:
+    ANR: "nitrogen/Assimilatory nitrate reduction.fasta"
+    DEN: "nitrogen/Denitrification.fasta"
+    DNR: "nitrogen/Dissimilatory nitrate reduction.fasta"
+    NIT: "nitrogen/Nitrification.fasta"
+  cultivation_pathways:
+    amino_acid: "cultivation/path.aa"
+    vitamin: "cultivation/path.vc"
+    nucleotide: "cultivation/path_hesuan"
+    atp: "cultivation/path_atp"
+  kangshengsu: "kangshengsu"
+
+pathway_names:
+  CO2-CH4: "CO2 reduction methanogenesis pathway"
+  JIAAN-CH4: "Methylamine methanogenesis pathway"
+  JIACHUN-CH4: "Methanol methanogenesis pathway"
+  JIALIUCHUN-CH4: "Methanethiol methanogenesis pathway"
+  YISUAN-CH4: "Acetate methanogenesis pathway"
+  C16-CH4: "C16 methanogenesis pathway"
+  CO-CH4: "CO methanogenesis pathway"
+  JIASUAN-CH4: "Formate methanogenesis pathway"
+  JIAYANGJI-CH4: "Methoxy methanogenesis pathway"
+  ZHIFANGSUAN-CH4: "Fatty acid methanogenesis pathway"
+  2JIAAN-CH4: "Dimethylamine methanogenesis pathway"
+  3JIAAN-CH4: "Trimethylamine methanogenesis pathway"
+  Glycine betaine methanogenesis: "Glycine betaine methanogenesis pathway"
+  Methylthiopropionate methanogenesis: "Methylthiopropionate methanogenesis pathway"
+  Tetramethylammonium methanogenesis: "Tetramethylammonium methanogenesis pathway"
+  Methanol dismutation methanogenesis: "Methanol dismutation methanogenesis pathway"
+  ASR: "Assimilatory sulfate reduction pathway"
+  SO: "Sulfide oxidation pathway"
+  SOX: "Sulfur oxidation SOX system pathway"
+  S4I: "Sulfur oxidation tetrathionate intermediate pathway"
+  SR: "Sulfur reduction pathway"
+  DSR: "Dissimilatory sulfate reduction pathway"
+  ANR: "Assimilatory nitrate reduction pathway"
+  DEN: "Denitrification pathway"
+  DNR: "Dissimilatory nitrate reduction pathway"
+  NIT: "Nitrification pathway"
+  CULTIVATION: "Cultivation assessment"
+
+reference_sequence_counts:
+  CO2-CH4: 15
+  JIAAN-CH4: 10
+  JIACHUN-CH4: 7
+  JIALIUCHUN-CH4: 6
+  YISUAN-CH4: 14
+  Glycine betaine methanogenesis: 3
+  Methylthiopropionate methanogenesis: 4
+  Tetramethylammonium methanogenesis: 3
+  Methanol dismutation methanogenesis: 15
+  C16-CH4: 15
+  CO-CH4: 11
+  JIASUAN-CH4: 18
+  JIAYANGJI-CH4: 9
+  ZHIFANGSUAN-CH4: 12
+  2JIAAN-CH4: 10
+  3JIAAN-CH4: 10
+  ASR: 9
+  SO: 2
+  SOX: 7
+  S4I: 5
+  SR: 3
+  DSR: 8
+  ANR: 9
+  DEN: 10
+  DNR: 9
+  NIT: 4
+  CULTIVATION: 14192
+
+cultivation:
+  diamond_path: "diamond"
+  use_wsl: false
+  threads: 4
+  evalue: 1.0e-5
+  identity_threshold: 30.0
+  pathway_weights:
+    amino_acid: 0.4
+    vitamin: 0.3
+    nucleotide: 0.2
+    atp: 0.1
+  cultivability_thresholds:
+    high: 0.8
+    medium: 0.6
+    low: 0.4
+
+output:
+  base_dir: "results"
+  formats:
+    - csv
+    - json
+    - html
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "metharct.log"

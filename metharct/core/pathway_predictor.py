@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union, Tuple
 from ..utils.config import Config
 from ..utils.logger import get_logger
-from ..utils.file_utils import FileUtils
+from ..utils.file_utils import FileUtils, NumpyEncoder
 from .diamond_analyzer import DiamondAnalyzer
 from .cultivation_analyzer import CultivationAnalyzer
 from .tome_analyzer import TomeAnalyzer
@@ -877,7 +877,7 @@ class PathwayPredictor:
         # Save complete JSON results
         json_file = os.path.join(self.results_dir, f"{output_prefix}_comprehensive_analysis.json")
         with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
+            json.dump(results, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
         
         # Save summary report
         summary_file = os.path.join(self.results_dir, f"{output_prefix}_analysis_summary.txt")

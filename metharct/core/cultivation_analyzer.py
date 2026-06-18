@@ -19,6 +19,7 @@ import threading
 from datetime import datetime
 import time
 import glob
+from ..utils.file_utils import NumpyEncoder
 
 class CultivationAnalyzer:
     """
@@ -862,7 +863,7 @@ class CultivationAnalyzer:
                     'missing_genes': pathway_result['missing_genes']
                 }
             with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
+                json.dump(export_data, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
     
     def analyze_amino_acid_biosynthesis(self, results: Dict[str, Dict[str, Any]],
                                          completeness_threshold: float = 0.5) -> Dict[str, Any]:
@@ -1195,7 +1196,7 @@ class CultivationAnalyzer:
         # Save complete results as JSON
         json_file = os.path.join(output_dir, f"{genome_name}_full_results.json")
         with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
+            json.dump(results, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
     
     def _generate_batch_summary(self, all_results: Dict[str, Dict[str, Any]], output_dir: str):
         """

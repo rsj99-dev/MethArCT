@@ -33,6 +33,5 @@ __all__ = [
     'PathwayPredictor'
 ]
 
-# Version information
-__version__ = '0.6.0'
+# Version information - use metharct.__version__ for the canonical version
 __author__ = 'rsj1999'

@@ -37,10 +37,10 @@ databases:
     "YISUAN-CH4": "Acetate methanogenesis"
     "C16-CH4": "Long-chain fatty acid methanogenesis"
     "CO-CH4": "CO methanogenesis"
-    "甘氨酸甜菜碱产甲烷": "Glycine betaine methanogenesis"
-    "硫代丙酸甲酯产甲烷": "Methylthiopropionate methanogenesis"
-    "四甲基铵产甲烷": "Tetramethylammonium methanogenesis"
-    "甲醇歧化产甲烷": "Methanol dismutation methanogenesis"
+    "Glycine betaine methanogenesis": "Glycine betaine methanogenesis"
+    "Methylthiopropionate methanogenesis": "Methylthiopropionate methanogenesis"
+    "Tetramethylammonium methanogenesis": "Tetramethylammonium methanogenesis"
+    "Methanol dismutation methanogenesis": "Methanol dismutation methanogenesis"
   methane_pathways:
     CO2-CH4: "methane/processed_CO2-CH4.fasta"
     JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
@@ -54,10 +54,10 @@ databases:
     ZHIFANGSUAN-CH4: "methane/processed_ZHIFANGSUAN-CH4.fasta"
     2JIAAN-CH4: "methane/processed_2JIAAN-CH4.fasta"
     3JIAAN-CH4: "methane/processed_3JIAAN-CH4.fasta"
-    甘氨酸甜菜碱产甲烷: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
-    硫代丙酸甲酯产甲烷: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
-    四甲基铵产甲烷: "methane/四甲基铵产甲烷.fasta"
-    甲醇歧化产甲烷: "methane/甲醇歧化产甲烷.fasta"
+    Glycine betaine methanogenesis: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
+    Methylthiopropionate methanogenesis: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
+    Tetramethylammonium methanogenesis: "methane/四甲基铵产甲烷.fasta"
+    Methanol dismutation methanogenesis: "methane/processed_甲醇歧化产甲烷.fasta"
   sulfur_pathways:
     ASR: "sulfur/Assimilatory sulfate reduction.fasta"
     SO: "sulfur/Sulfide oxidation.fasta"
@@ -80,7 +80,7 @@ databases:
 reference_sequence_counts:
     JIASUAN-CH4: 18
     CO2-CH4: 15
-    甘氨酸甜菜碱产甲烷: 3
-    硫代丙酸甲酯产甲烷: 4
-    四甲基铵产甲烷: 3
-    甲醇歧化产甲烷: 15
+    Glycine betaine methanogenesis: 3
+    Methylthiopropionate methanogenesis: 4
+    Tetramethylammonium methanogenesis: 3
+    Methanol dismutation methanogenesis: 15

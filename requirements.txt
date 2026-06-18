@@ -12,10 +12,6 @@ loguru>=0.6.0
 shap>=0.40.0
 openpyxl>=3.0.0
 
-# Optional dependencies for full functionality
-# diamond-annotator>=1.0  # For Diamond BLAST analysis
-# checkm2>=1.0           # For genome quality assessment
-
 # Development dependencies
 pytest>=7.0
 pytest-cov>=4.0

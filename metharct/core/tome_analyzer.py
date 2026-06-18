@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Union
 from Bio import SeqIO
 from ..utils.config import Config
 from ..utils.logger import get_logger
-from ..utils.file_utils import FileUtils
+from ..utils.file_utils import FileUtils, NumpyEncoder
 from ..utils.sequence_utils import SequenceUtils
 
 class TomeAnalyzer:
@@ -375,7 +375,7 @@ class TomeAnalyzer:
             'tool': 'Tome'
         }
         with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(summary_data, f, indent=2, ensure_ascii=False)
+            json.dump(summary_data, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
         self.logger.info(f"Results saved to: {json_file}")
 
     def cleanup(self):
