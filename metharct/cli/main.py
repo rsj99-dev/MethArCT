@@ -22,7 +22,8 @@ try:
         comprehensive_command,
         susha_command,
         ph_command,
-        antibiotic_command
+        antibiotic_command,
+        batch_command,
     )
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -153,6 +154,14 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         description='Predict antibiotic resistance by comparing query proteins against methanogen reference genomes using AAI thresholds'
     )
     _add_antibiotic_args(antibiotic_parser)
+
+    # Batch comprehensive analysis command
+    batch_parser = subparsers.add_parser(
+        'batch',
+        help='Batch comprehensive analysis of all FASTA files in a directory',
+        description='Run comprehensive analysis (temperature, pH, salinity, substrate metabolism, amino acids, antibiotics) for all .faa files in a folder and output a summary CSV'
+    )
+    _add_batch_args(batch_parser)
 
     return parser
 
@@ -384,6 +393,41 @@ def _add_antibiotic_args(parser: argparse.ArgumentParser):
         help='E-value threshold for DIAMOND (default: 1e-5)'
     )
 
+def _add_batch_args(parser: argparse.ArgumentParser):
+    """Add arguments for batch analysis command"""
+    parser.add_argument(
+        'input',
+        type=str,
+        help='Input directory containing FASTA files (.faa/.fa/.fasta)'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        required=True,
+        help='Output CSV file path (e.g. results.csv)'
+    )
+
+    parser.add_argument(
+        '-mags',
+        action='store_true',
+        help='MAGs mode: show energy metabolism pathways with completeness >= 70%% (default: 100%%)'
+    )
+
+    parser.add_argument(
+        '--threads',
+        type=int,
+        default=4,
+        help='Number of threads for DIAMOND (default: 4)'
+    )
+
+    parser.add_argument(
+        '--evalue',
+        type=float,
+        default=1e-5,
+        help='E-value threshold for DIAMOND (default: 1e-5)'
+    )
+
 def _add_checkm2_args(parser: argparse.ArgumentParser):
     """
     Add arguments for checkm2 command
@@ -535,15 +579,15 @@ def main():
             # Load configuration
             config = load_config(args.config)
             
-            # Validate input file (except for some commands that might not need it)
+            # Validate input file (except for batch command which takes a directory)
             input_path = None
-            if hasattr(args, 'input'):
+            if hasattr(args, 'input') and args.command != 'batch':
                 input_path = validate_input_file(args.input)
             
             # Create output directory
             output_dir = None
             output_prefix = None
-            if hasattr(args, 'output'):
+            if hasattr(args, 'output') and args.command != 'batch':
                 output_dir, output_prefix = create_output_directory(args.output)
                 
                 # Use the original output argument as prefix if it looks like a filename
@@ -654,6 +698,24 @@ def main():
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config
+                )
+
+            elif args.command == 'batch':
+                # Batch command: input is a directory, output is a CSV file
+                batch_input_dir = args.input
+                if not Path(batch_input_dir).is_dir():
+                    raise ValueError(f"Input is not a directory: {batch_input_dir}")
+
+                if hasattr(args, 'threads') and args.threads:
+                    config.set('tools.diamond.threads', args.threads)
+                if hasattr(args, 'evalue') and args.evalue:
+                    config.set('tools.diamond.evalue', args.evalue)
+
+                batch_command(
+                    input_dir=batch_input_dir,
+                    output_csv=args.output,
+                    config=config,
+                    mags=getattr(args, 'mags', False),
                 )
             
             print("\nAnalysis completed successfully!")

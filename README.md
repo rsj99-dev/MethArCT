@@ -8,7 +8,7 @@
 
 MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, pH preference, antibiotic resistance, and cultivability.
 
-Access MethArCT v0.6.0 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
+Access MethArCT v0.6.3 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
 ## Key Features
 
@@ -123,6 +123,29 @@ metharct antibiotic "protein.faa" -o results/    # Antibiotic resistance predict
 metharct tome "protein.faa" -o results/          # Requires Tome
 metharct checkm2 "genome.fasta" -o results/      # Requires CheckM2
 ```
+
+**Batch Processing (multiple genomes)**:
+```bash
+# Batch comprehensive analysis for all .faa files in a directory
+metharct batch "genomes_folder/" -o results.csv
+
+# For metagenome-assembled genomes (MAGs): show pathways with completeness >= 70%
+metharct batch "genomes_folder/" -o results.csv -mags
+```
+
+This command processes every FASTA file (`.faa`, `.fa`, `.fasta`) in the given directory and generates a single summary CSV with the following columns:
+
+| Column | Description |
+|--------|-------------|
+| FAA_filename | Input file name |
+| Temperature_range | Estimated growth temperature range |
+| Optimal_temperature | Predicted optimal growth temperature (OGT) |
+| pH_range | Predicted pH range (min–max) |
+| Optimal_pH | Predicted pH optimum |
+| Salinity_range | Predicted salinity adaptation range |
+| Substrate_metabolism | Energy metabolism pathways (methane, sulfur, nitrogen) with completeness = 100% (or ≥ 70% with `-mags`) |
+| Additional_amino_acids_required | Amino acids with incomplete biosynthesis pathways |
+| Recommended_antibiotics | Recommended antibiotics based on AAI comparison |
 
 ### 2. Python Script Usage
 ```python

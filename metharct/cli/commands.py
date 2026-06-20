@@ -6,10 +6,11 @@ MethArCT CLI Commands
 Implements the individual command functions for the MethArCT CLI.
 """
 
+import csv
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from metharct.core import (
     DiamondAnalyzer,
@@ -850,3 +851,358 @@ def antibiotic_command(input_path: str,
     except Exception as e:
         logger.error(f"Antibiotic prediction failed: {str(e)}")
         raise
+
+
+# ============================================================
+# Batch comprehensive analysis command
+# ============================================================
+
+# Salinity label -> Chinese range mapping
+_SALINITY_RANGE_MAP = {
+    'Salt-sensitive': '0%-1%',
+    'Halotolerant': '1%-3%',
+    'Slight halophilic': '3%-5%',
+    'Moderate halophilic': '5%-15%',
+    'Extreme halophilic': '15%-30%',
+}
+
+# Methane pathway db key -> Chinese substrate name
+_SUBSTRATE_CN_MAP = {
+    # Methane metabolism
+    'CO2-CH4': 'CO2/H2',
+    'JIAAN-CH4': 'Methylamine',
+    'JIACHUN-CH4': 'Methanol',
+    'JIALIUCHUN-CH4': 'Methanethiol',
+    'YISUAN-CH4': 'Acetate',
+    'C16-CH4': 'Long-chain fatty acids',
+    'CO-CH4': 'CO',
+    'JIASUAN-CH4': 'Formate',
+    'JIAYANGJI-CH4': 'Methoxy compounds',
+    'ZHIFANGSUAN-CH4': 'Fatty acids',
+    '2JIAAN-CH4': 'Dimethylamine',
+    '3JIAAN-CH4': 'Trimethylamine',
+    'Glycine betaine methanogenesis': 'Glycine betaine',
+    'Methylthiopropionate methanogenesis': 'Methylthiopropionate',
+    'Tetramethylammonium methanogenesis': 'Tetramethylammonium',
+    'Methanol dismutation methanogenesis': 'Methanol dismutation',
+    # Sulfur metabolism
+    'ASR': 'Assimilatory sulfate reduction',
+    'SO': 'Sulfide oxidation',
+    'SOX': 'SOX sulfur oxidation',
+    'S4I': 'S4I sulfur oxidation',
+    'SR': 'Sulfur reduction',
+    'DSR': 'Dissimilatory sulfate reduction',
+    # Nitrogen metabolism
+    'ANR': 'Assimilatory nitrate reduction',
+    'DEN': 'Denitrification',
+    'DNR': 'Dissimilatory nitrate reduction',
+    'NIT': 'Nitrification',
+}
+
+# Batch output CSV columns
+_BATCH_CSV_COLUMNS = [
+    'FAA_filename', 'Temperature_range', 'Optimal_temperature',
+    'pH_range', 'Optimal_pH', 'Salinity_range',
+    'Substrate_metabolism', 'Additional_amino_acids_required', 'Recommended_antibiotics',
+]
+
+
+def _estimate_temp_range(ogt: float) -> str:
+    """Estimate growth temperature range from OGT."""
+    if ogt < 20:
+        spread = 8
+    elif ogt < 40:
+        spread = 12
+    elif ogt < 60:
+        spread = 15
+    else:
+        spread = 10
+    t_min = round(max(ogt - spread, 0.0), 1)
+    t_max = round(ogt + spread, 1)
+    return f"{t_min}-{t_max}"
+
+
+# Chinese amino acid name -> English translation
+_AA_CN_TO_EN = {
+    '半胱氨酸': 'Cysteine',
+    '苯丙氨酸': 'Phenylalanine',
+    '蛋氨酸': 'Methionine',
+    '脯氨酸': 'Proline',
+    '精氨酸': 'Arginine',
+    '赖氨酸': 'Lysine',
+    '酪氨酸': 'Tyrosine',
+    '亮氨酸': 'Leucine',
+    '异亮氨酸': 'Isoleucine',
+    '色氨酸': 'Tryptophan',
+    '苏氨酸': 'Threonine',
+    '缬氨酸': 'Valine',
+    '丝氨酸': 'Serine',
+    '组氨酸': 'Histidine',
+}
+
+
+def _extract_missing_amino_acids(cult_results: Dict) -> str:
+    """
+    Extract amino acids whose biosynthesis pathways are all incomplete.
+
+    Returns a comma-separated string of English amino acid names.
+    """
+    # Build amino acid -> [completeness values] mapping
+    aa_completeness: Dict[str, List[float]] = {}
+    for pathway_name, pathway_data in cult_results.items():
+        if '生物合成' not in pathway_name:
+            continue
+        aa_name = pathway_name.split('生物合成')[0]
+        if aa_name not in aa_completeness:
+            aa_completeness[aa_name] = []
+        aa_completeness[aa_name].append(pathway_data.get('completeness', 0.0))
+
+    missing = []
+    for aa_name, completeness_list in aa_completeness.items():
+        # All pathways for this amino acid are incomplete (< 100%)
+        if all(c < 1.0 for c in completeness_list):
+            en_name = _AA_CN_TO_EN.get(aa_name, aa_name)
+            missing.append(en_name)
+
+    return ', '.join(missing) if missing else ''
+
+
+def _run_single_batch_analysis(
+    faa_path: Path,
+    output_prefix: str,
+    config: Config,
+    analyzers: Dict[str, Any],
+    logger,
+    mags: bool = False,
+) -> Dict[str, str]:
+    """
+    Run all analyses on a single .faa file and return a row dict
+    matching the batch CSV columns.
+
+    Args:
+        mags: If True, show pathways with completeness >= 70%;
+              otherwise only show pathways with completeness == 100%.
+    """
+    row = {col: '' for col in _BATCH_CSV_COLUMNS}
+    row['FAA_filename'] = faa_path.name
+
+    input_str = str(faa_path)
+
+    # ---- Tome (temperature) ----
+    try:
+        tome = analyzers['tome']
+        tome_results = tome.predict_ogt(input_file=input_str, output_prefix=output_prefix)
+        ogt = tome_results.get('summary', {}).get('predicted_ogt_celsius')
+        if ogt is not None:
+            row['Optimal_temperature'] = round(ogt, 1)
+            row['Temperature_range'] = _estimate_temp_range(ogt)
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] Tome failed: {e}")
+
+    # ---- pH ----
+    try:
+        ph = analyzers['ph']
+        ph_results = ph.predict_ph(input_file=input_str, output_prefix=output_prefix)
+        if ph_results.get('status') == 'success':
+            ph_min = ph_results.get('summary', {}).get('ph_min')
+            ph_max = ph_results.get('summary', {}).get('ph_max')
+            ph_opt = ph_results.get('summary', {}).get('ph_optimum')
+            if ph_opt is not None:
+                row['Optimal_pH'] = round(ph_opt, 1)
+            if ph_min is not None and ph_max is not None:
+                row['pH_range'] = f"{round(ph_min, 1)}-{round(ph_max, 1)}"
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] pH failed: {e}")
+
+    # ---- SuSha (salinity) ----
+    try:
+        susha = analyzers['susha']
+        susha_results = susha.predict_salinity(input_file=input_str, output_prefix=output_prefix)
+        if susha_results.get('status') == 'success':
+            label = susha_results.get('prediction', {}).get('salinity_label', '')
+            row['Salinity_range'] = _SALINITY_RANGE_MAP.get(label, label)
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] SuSha failed: {e}")
+
+    # ---- Diamond (energy metabolism pathways) ----
+    try:
+        diamond = analyzers['diamond']
+        diamond_results = diamond.analyze_sequence(input_file=input_str, output_prefix=output_prefix)
+        pathway_results = diamond_results.get('pathway_results', {})
+        # Completeness threshold: 100% by default, 70% for MAGs
+        completeness_threshold = 70.0 if mags else 100.0
+        substrates = []
+        for db_key, cn_name in _SUBSTRATE_CN_MAP.items():
+            if db_key in pathway_results:
+                pw_data = pathway_results[db_key]
+                completeness = pw_data.get('low_completeness_percentage', 0.0)
+                if completeness >= completeness_threshold:
+                    substrates.append(cn_name)
+        row['Substrate_metabolism'] = ', '.join(substrates) if substrates else ''
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] Diamond failed: {e}")
+
+    # ---- Cultivation (amino acids needed) ----
+    try:
+        cultivation = analyzers['cultivation']
+        cult_results = cultivation.analyze_genome(genome_file=input_str)
+        row['Additional_amino_acids_required'] = _extract_missing_amino_acids(cult_results)
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] Cultivation failed: {e}")
+
+    # ---- Antibiotic ----
+    try:
+        antibiotic = analyzers['antibiotic']
+        ab_results = antibiotic.predict_antibiotics(
+            input_file=input_str, output_prefix=output_prefix
+        )
+        if ab_results.get('status') == 'success':
+            recommended = ab_results.get('recommended_antibiotics', [])
+            row['Recommended_antibiotics'] = ', '.join(recommended) if recommended else ''
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] Antibiotic failed: {e}")
+
+    return row
+
+
+def batch_command(input_dir: str,
+                  output_csv: str,
+                  config: Config,
+                  mags: bool = False):
+    """
+    Batch comprehensive analysis of all .faa files in a directory.
+
+    Args:
+        input_dir: Path to directory containing .faa files
+        output_csv: Path to output CSV file
+        config: Configuration object
+        mags: If True, show pathways with completeness >= 70% (for MAGs);
+              otherwise only show pathways with completeness == 100%.
+    """
+    logger = get_logger("batch_command")
+
+    # Scan for .faa files
+    input_path = Path(input_dir)
+    if not input_path.is_dir():
+        raise ValueError(f"Input is not a directory: {input_dir}")
+
+    faa_files = sorted(
+        p for p in input_path.iterdir()
+        if p.suffix.lower() in ('.faa', '.fa', '.fasta') and p.is_file()
+    )
+
+    if not faa_files:
+        raise FileNotFoundError(f"No FASTA files found in: {input_dir}")
+
+    print("\n" + "=" * 60)
+    print("MethArCT Batch Comprehensive Analysis")
+    print("=" * 60)
+    print(f"Input directory: {input_dir}")
+    print(f"FASTA files found: {len(faa_files)}")
+    print(f"Output CSV: {output_csv}")
+    print(f"Mode: {'MAGs (pathway completeness >= 70%)' if mags else 'Isolate genome (pathway completeness == 100%)'}")
+    print("=" * 60 + "\n")
+
+    # Ensure output directory exists
+    output_path = Path(output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Set analyzer output base directory
+    config.set('output.base_dir', str(output_path.parent))
+
+    # Initialize all analyzers once
+    print("Initializing analyzers...")
+    analyzers: Dict[str, Any] = {}
+
+    try:
+        analyzers['tome'] = TomeAnalyzer(config)
+        print("  [OK] Tome (temperature)")
+    except Exception as e:
+        logger.warning(f"Tome unavailable: {e}")
+        print(f"  [SKIP] Tome: {e}")
+
+    try:
+        ph_analyzer = PHAnalyzer(config)
+        if ph_analyzer.tool_available:
+            analyzers['ph'] = ph_analyzer
+            print("  [OK] pH predictor")
+        else:
+            print("  [SKIP] pH predictor not available")
+    except Exception as e:
+        logger.warning(f"pH unavailable: {e}")
+        print(f"  [SKIP] pH: {e}")
+
+    try:
+        susha_analyzer = SuShaAnalyzer(config)
+        if susha_analyzer.tool_available:
+            analyzers['susha'] = susha_analyzer
+            print("  [OK] SuSha (salinity)")
+        else:
+            print("  [SKIP] SuSha not available")
+    except Exception as e:
+        logger.warning(f"SuSha unavailable: {e}")
+        print(f"  [SKIP] SuSha: {e}")
+
+    try:
+        analyzers['diamond'] = DiamondAnalyzer(config)
+        print("  [OK] Diamond (metabolic pathways)")
+    except Exception as e:
+        logger.warning(f"Diamond unavailable: {e}")
+        print(f"  [SKIP] Diamond: {e}")
+
+    try:
+        analyzers['cultivation'] = CultivationAnalyzer(config.config)
+        print("  [OK] Cultivation (amino acid biosynthesis)")
+    except Exception as e:
+        logger.warning(f"Cultivation unavailable: {e}")
+        print(f"  [SKIP] Cultivation: {e}")
+
+    try:
+        threads = config.get('tools.diamond.threads', 4)
+        evalue = config.get('tools.diamond.evalue', 1e-5)
+        analyzers['antibiotic'] = AntibioticAnalyzer(config=config, cpus=threads, evalue=evalue)
+        print("  [OK] Antibiotic resistance")
+    except Exception as e:
+        logger.warning(f"Antibiotic unavailable: {e}")
+        print(f"  [SKIP] Antibiotic: {e}")
+
+    if not analyzers:
+        raise RuntimeError("No analyzers available. Please check your installation.")
+
+    print(f"\nProcessing {len(faa_files)} FASTA files...\n")
+
+    # Process each file
+    all_rows: List[Dict[str, str]] = []
+    total_start = time.time()
+
+    for idx, faa_file in enumerate(faa_files, 1):
+        file_start = time.time()
+        print(f"[{idx}/{len(faa_files)}] {faa_file.name}")
+
+        prefix = faa_file.stem
+        row = _run_single_batch_analysis(
+            faa_path=faa_file,
+            output_prefix=prefix,
+            config=config,
+            analyzers=analyzers,
+            logger=logger,
+            mags=mags,
+        )
+        all_rows.append(row)
+
+        elapsed = time.time() - file_start
+        print(f"    Done in {elapsed:.1f}s")
+
+    # Write CSV
+    with open(output_csv, 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.DictWriter(f, fieldnames=_BATCH_CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerows(all_rows)
+
+    total_elapsed = time.time() - total_start
+    print(f"\n{'=' * 60}")
+    print(f"Batch analysis completed in {total_elapsed:.1f}s")
+    print(f"Results saved to: {output_csv}")
+    print(f"{'=' * 60}")
+
+    logger.info(f"Batch analysis completed: {len(faa_files)} files in {total_elapsed:.1f}s")

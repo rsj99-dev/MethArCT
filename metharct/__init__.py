@@ -7,11 +7,11 @@ A comprehensive bioinformatics tool for analyzing metabolic pathways
 in methanogenic archaea using Diamond BLAST and other analysis tools.
 
 Author: MethArCT Development Team
-Version: 0.6.2
+Version: 0.6.3
 License: GPL-3.0
 """
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 __author__ = "MethArCT Development Team"
 __email__ = "rsj1999@njtech.edu.cn"
 __license__ = "GPL-3.0"
