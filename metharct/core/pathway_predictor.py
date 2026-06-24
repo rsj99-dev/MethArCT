@@ -473,7 +473,7 @@ class PathwayPredictor:
             'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'
         ]
         sulfur_keys = ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR']
-        nitrogen_keys = ['ANR', 'DEN', 'DNR', 'NIT']
+        nitrogen_keys = ['ANR', 'DEN', 'DNR', 'NIT', 'AMX', 'CNIT', 'NFX1', 'NFX2']
 
         pathway_names = self.config.get('pathway_names', {})
         completeness_threshold = 80.0  # % threshold for "complete"

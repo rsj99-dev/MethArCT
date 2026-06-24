@@ -58,6 +58,10 @@ databases:
     DEN: "nitrogen/Denitrification.fasta"
     DNR: "nitrogen/Dissimilatory nitrate reduction.fasta"
     NIT: "nitrogen/Nitrification.fasta"
+    AMX: "nitrogen/Anammox.fasta"
+    CNIT: "nitrogen/Complete nitrification.fasta"
+    NFX1: "nitrogen/Nitrogen fixation1.fasta"
+    NFX2: "nitrogen/Nitrogen fixation2.fasta"
   cultivation_pathways:
     amino_acid: "cultivation/path.aa"
     vitamin: "cultivation/path.vc"
@@ -92,6 +96,10 @@ pathway_names:
   DEN: "Denitrification pathway"
   DNR: "Dissimilatory nitrate reduction pathway"
   NIT: "Nitrification pathway"
+  AMX: "Anammox pathway"
+  CNIT: "Complete nitrification pathway"
+  NFX1: "Nitrogen fixation1 pathway"
+  NFX2: "Nitrogen fixation2 pathway"
   CULTIVATION: "Cultivation assessment"
 
 reference_sequence_counts:
@@ -121,6 +129,10 @@ reference_sequence_counts:
   DEN: 10
   DNR: 9
   NIT: 4
+  AMX: 5
+  CNIT: 6
+  NFX1: 4
+  NFX2: 4
   CULTIVATION: 14192
 
 cultivation:

@@ -42,7 +42,7 @@ def get_version():
             for line in f:
                 if line.startswith("__version__"):
                     return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.6.3"
+    return "0.6.4"
 
 setup(
     name="metharct",

@@ -70,6 +70,10 @@ databases:
     DEN: "nitrogen/Denitrification.fasta"
     DNR: "nitrogen/Dissimilatory nitrate reduction.fasta"
     NIT: "nitrogen/Nitrification.fasta"
+    AMX: "nitrogen/Anammox.fasta"
+    CNIT: "nitrogen/Complete nitrification.fasta"
+    NFX1: "nitrogen/Nitrogen fixation1.fasta"
+    NFX2: "nitrogen/Nitrogen fixation2.fasta"
   cultivation:
     base_dir: "cultivation"
     amino_acids: "path.aa"

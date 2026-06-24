@@ -34,7 +34,7 @@ METHANE_DATABASES = frozenset([
 
 SULFUR_DATABASES = frozenset(['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
 
-NITROGEN_DATABASES = frozenset(['ANR', 'DEN', 'DNR', 'NIT'])
+NITROGEN_DATABASES = frozenset(['ANR', 'DEN', 'DNR', 'NIT', 'AMX', 'CNIT', 'NFX1', 'NFX2'])
 
 CULTIVATION_DATABASE = 'CULTIVATION'
 
