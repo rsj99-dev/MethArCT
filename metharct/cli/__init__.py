@@ -9,9 +9,12 @@ Provides command-line tools for running MethArCT analyses.
 from .main import main, create_parser
 from .commands import (
     diamond_command,
-    tome_command,
     checkm2_command,
     comprehensive_command,
+    susha_command,
+    huainanzi_command,
+    ph_command,
+    antibiotic_command,
     cultivation_command
 )
 
@@ -19,8 +22,11 @@ __all__ = [
     'main',
     'create_parser',
     'diamond_command',
-    'tome_command', 
     'checkm2_command',
     'comprehensive_command',
+    'susha_command',
+    'huainanzi_command',
+    'ph_command',
+    'antibiotic_command',
     'cultivation_command'
 ]

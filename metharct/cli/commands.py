@@ -14,11 +14,11 @@ from typing import Optional, List, Dict, Any
 
 from metharct.core import (
     DiamondAnalyzer,
-    TomeAnalyzer,
     CheckM2Analyzer,
     PathwayPredictor,
     CultivationAnalyzer,
     SuShaAnalyzer,
+    HuainanziAnalyzer,
     PHAnalyzer,
     AntibioticAnalyzer,
 )
@@ -29,9 +29,9 @@ from metharct.utils.file_utils import FileUtils
 def comprehensive_command(input_path: str,
                          output_prefix: str,
                          config: Config,
-                         skip_tome: bool = False,
                          skip_checkm2: bool = False,
                          skip_susha: bool = False,
+                         skip_huainanzi: bool = False,
                          skip_ph: bool = False,
                          skip_antibiotic: bool = False):
     """
@@ -41,9 +41,9 @@ def comprehensive_command(input_path: str,
         input_path: Path to input FASTA file
         output_prefix: Output file prefix
         config: Configuration object
-        skip_tome: Skip Tome analysis
         skip_checkm2: Skip CheckM2 analysis
         skip_susha: Skip SuSha salinity prediction
+        skip_huainanzi: Skip Huainanzi temperature prediction
         skip_ph: Skip pH preference prediction
         skip_antibiotic: Skip antibiotic resistance prediction
     """
@@ -54,9 +54,9 @@ def comprehensive_command(input_path: str,
     print("=" * 60)
     print(f"Input file: {input_path}")
     print(f"Output prefix: {output_prefix}")
-    print(f"Skip Tome: {skip_tome}")
     print(f"Skip CheckM2: {skip_checkm2}")
     print(f"Skip SuSha: {skip_susha}")
+    print(f"Skip Huainanzi: {skip_huainanzi}")
     print(f"Skip pH: {skip_ph}")
     print(f"Skip Antibiotic: {skip_antibiotic}")
     print("=" * 60 + "\n")
@@ -79,9 +79,9 @@ def comprehensive_command(input_path: str,
         results = predictor.predict_comprehensive(
             input_path=input_path,
             output_prefix=output_prefix,
-            include_tome=not skip_tome,
             include_checkm2=not skip_checkm2,
             include_susha=not skip_susha,
+            include_huainanzi=not skip_huainanzi,
             include_ph=not skip_ph,
             include_antibiotic=not skip_antibiotic
         )
@@ -115,6 +115,20 @@ def comprehensive_command(input_path: str,
                     print("\nKey Characteristics:")
                     for char in key_chars:
                         print(f"  - {char}")
+
+            # Print temperature prediction summary if available
+            env_adaptation = integrated.get('environmental_adaptation', {})
+            temp_data = env_adaptation.get('temperature', {})
+            if temp_data and temp_data.get('T_opt') is not None:
+                print("\nTemperature Prediction (Huainanzi):")
+                print(f"  T_min: {temp_data.get('T_min', 'N/A')} °C")
+                print(f"  T_opt: {temp_data.get('T_opt', 'N/A')} °C")
+                print(f"  T_max: {temp_data.get('T_max', 'N/A')} °C")
+                print(f"  Category: {temp_data.get('temperature_category', 'N/A')}")
+            elif 'huainanzi' in results.get('results', {}):
+                hz_result = results['results']['huainanzi']
+                if hz_result.get('status') == 'failed':
+                    print(f"\nTemperature Prediction (Huainanzi): FAILED ({hz_result.get('error', 'Unknown error')})")
 
             # Print pH prediction summary if available
             env_adaptation = integrated.get('environmental_adaptation', {})
@@ -371,86 +385,6 @@ def cultivation_command(input_path: str,
         logger.error(f"Cultivation analysis failed: {str(e)}")
         raise
 
-def tome_command(input_path: str,
-                output_prefix: str,
-                config: Config,
-                batch_size: int = 100):
-    """
-    Run Tome analysis command
-    
-    Args:
-        input_path: Path to input FASTA file
-        output_prefix: Output file prefix
-        config: Configuration object
-        batch_size: Batch size for processing
-    """
-    logger = get_logger("tome_command")
-    
-    print("\n" + "=" * 60)
-    print("MethArCT Tome Analysis")
-    print("=" * 60)
-    print(f"Input file: {input_path}")
-    print(f"Output prefix: {output_prefix}")
-    print(f"Batch size: {batch_size}")
-    print("=" * 60 + "\n")
-    
-    try:
-        # Validate input file
-        if not FileUtils.validate_fasta(input_path):
-            raise ValueError(f"Invalid FASTA file: {input_path}")
-        
-        # Get sequence count
-        seq_count = FileUtils.count_sequences(input_path)
-        print(f"Processing {seq_count} protein sequences...\n")
-        
-        # Initialize analyzer
-        analyzer = TomeAnalyzer(config)
-        
-        # Update batch size in config
-        config.set('tools.tome.batch_size', batch_size)
-        
-        # Start analysis
-        start_time = time.time()
-        print("Starting Tome analysis...")
-        print("Note: This may take a while for large files...\n")
-        
-        results = analyzer.predict_ogt(
-            protein_file=input_path,
-            output_dir=output_prefix
-        )
-        
-        end_time = time.time()
-        analysis_time = end_time - start_time
-        
-        # Print summary
-        print("\n" + "=" * 60)
-        print("Tome Analysis Summary")
-        print("=" * 60)
-        
-        if 'summary' in results:
-            summary = results['summary']
-            print(f"Sequences processed: {summary.get('total_sequences', 0)}")
-            print(f"Successful predictions: {summary.get('successful_predictions', 0)}")
-            print(f"Average OGT: {summary.get('average_ogt', 0):.1f}°C")
-            print(f"Temperature category: {summary.get('temperature_category', 'Unknown')}")
-            print(f"Confidence: {summary.get('confidence', 0):.2f}")
-            
-            # Show temperature distribution if available
-            if 'temperature_distribution' in summary:
-                dist = summary['temperature_distribution']
-                print("\nTemperature distribution:")
-                for category, count in dist.items():
-                    print(f"  {category}: {count} sequences")
-        
-        print(f"\nAnalysis time: {analysis_time:.2f} seconds")
-        print("=" * 60)
-        
-        logger.info(f"Tome analysis completed in {analysis_time:.2f} seconds")
-        
-    except Exception as e:
-        logger.error(f"Tome analysis failed: {str(e)}")
-        raise
-
 def checkm2_command(input_path: str,
                    output_prefix: str,
                    config: Config,
@@ -667,6 +601,80 @@ def susha_command(input_path: str,
         
     except Exception as e:
         logger.error(f"SuSha prediction failed: {str(e)}")
+        raise
+
+
+def huainanzi_command(input_path: str,
+                     output_prefix: str,
+                     config: Config):
+    """
+    Run Huainanzi growth temperature range prediction
+
+    Args:
+        input_path: Path to input FASTA file
+        output_prefix: Output file prefix
+        config: Configuration object
+    """
+    logger = get_logger("huainanzi_command")
+
+    print("\n" + "=" * 60)
+    print("MethArCT Huainanzi Temperature Prediction")
+    print("=" * 60)
+    print(f"Input file: {input_path}")
+    print(f"Output prefix: {output_prefix}")
+    print("=" * 60 + "\n")
+
+    try:
+        # Validate input file
+        if not FileUtils.validate_fasta(input_path):
+            raise ValueError(f"Invalid FASTA file: {input_path}")
+
+        # Initialize analyzer
+        analyzer = HuainanziAnalyzer(config)
+
+        if not analyzer.tool_available:
+            raise RuntimeError(
+                "Huainanzi module is not available. "
+                "Please ensure 'scikit-learn' and 'numpy' are installed."
+            )
+
+        # Start analysis
+        start_time = time.time()
+        print("Starting Huainanzi temperature prediction...")
+
+        results = analyzer.predict_temperature(
+            input_file=input_path,
+            output_prefix=output_prefix
+        )
+
+        end_time = time.time()
+        analysis_time = end_time - start_time
+
+        # Print summary
+        print("\n" + "=" * 60)
+        print("Huainanzi Prediction Summary")
+        print("=" * 60)
+
+        if results.get('status') == 'success':
+            prediction = results.get('prediction', {})
+            print(f"T_min (最低生长温度): {prediction.get('T_min', 'N/A')} °C")
+            print(f"T_opt (最适生长温度): {prediction.get('T_opt', 'N/A')} °C")
+            print(f"T_max (最高生长温度): {prediction.get('T_max', 'N/A')} °C")
+            print(f"Category: {results.get('summary', {}).get('temperature_category', 'N/A')}")
+
+            output_files = results.get('output_files', {})
+            if output_files.get('tsv'):
+                print(f"\nResults saved to: {output_files['tsv']}")
+        else:
+            print(f"Prediction failed: {results.get('error', 'Unknown error')}")
+
+        print(f"\nAnalysis time: {analysis_time:.2f} seconds")
+        print("=" * 60)
+
+        logger.info(f"Huainanzi prediction completed in {analysis_time:.2f} seconds")
+
+    except Exception as e:
+        logger.error(f"Huainanzi prediction failed: {str(e)}")
         raise
 
 
@@ -988,17 +996,6 @@ def _run_single_batch_analysis(
 
     input_str = str(faa_path)
 
-    # ---- Tome (temperature) ----
-    try:
-        tome = analyzers['tome']
-        tome_results = tome.predict_ogt(input_file=input_str, output_prefix=output_prefix)
-        ogt = tome_results.get('summary', {}).get('predicted_ogt_celsius')
-        if ogt is not None:
-            row['Optimal_temperature'] = round(ogt, 1)
-            row['Temperature_range'] = _estimate_temp_range(ogt)
-    except Exception as e:
-        logger.warning(f"[{faa_path.name}] Tome failed: {e}")
-
     # ---- pH ----
     try:
         ph = analyzers['ph']
@@ -1013,6 +1010,23 @@ def _run_single_batch_analysis(
                 row['pH_range'] = f"{round(ph_min, 1)}-{round(ph_max, 1)}"
     except Exception as e:
         logger.warning(f"[{faa_path.name}] pH failed: {e}")
+
+    # ---- Huainanzi (temperature) ----
+    try:
+        huainanzi = analyzers.get('huainanzi')
+        if huainanzi:
+            hz_results = huainanzi.predict_temperature(input_file=input_str, output_prefix=output_prefix)
+            if hz_results.get('status') == 'success':
+                hz_pred = hz_results.get('prediction', {})
+                t_opt = hz_pred.get('T_opt')
+                t_min = hz_pred.get('T_min')
+                t_max = hz_pred.get('T_max')
+                if t_opt is not None:
+                    row['Optimal_temperature'] = round(t_opt, 1)
+                if t_min is not None and t_max is not None:
+                    row['Temperature_range'] = f"{round(t_min, 1)}-{round(t_max, 1)}"
+    except Exception as e:
+        logger.warning(f"[{faa_path.name}] Huainanzi failed: {e}")
 
     # ---- SuSha (salinity) ----
     try:
@@ -1115,13 +1129,6 @@ def batch_command(input_dir: str,
     analyzers: Dict[str, Any] = {}
 
     try:
-        analyzers['tome'] = TomeAnalyzer(config)
-        print("  [OK] Tome (temperature)")
-    except Exception as e:
-        logger.warning(f"Tome unavailable: {e}")
-        print(f"  [SKIP] Tome: {e}")
-
-    try:
         ph_analyzer = PHAnalyzer(config)
         if ph_analyzer.tool_available:
             analyzers['ph'] = ph_analyzer
@@ -1142,6 +1149,17 @@ def batch_command(input_dir: str,
     except Exception as e:
         logger.warning(f"SuSha unavailable: {e}")
         print(f"  [SKIP] SuSha: {e}")
+
+    try:
+        huainanzi_analyzer = HuainanziAnalyzer(config)
+        if huainanzi_analyzer.tool_available:
+            analyzers['huainanzi'] = huainanzi_analyzer
+            print("  [OK] Huainanzi (temperature)")
+        else:
+            print("  [SKIP] Huainanzi not available")
+    except Exception as e:
+        logger.warning(f"Huainanzi unavailable: {e}")
+        print(f"  [SKIP] Huainanzi: {e}")
 
     try:
         analyzers['diamond'] = DiamondAnalyzer(config)

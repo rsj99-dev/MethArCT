@@ -7,8 +7,8 @@
 ## Overview
 
 MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, pH preference, antibiotic resistance, and cultivability.
-Access MethArCT v0.1.0 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
-Access MethArCT v0.6.0 online at [http://methardb.cn/tools/metharct-beta](http://methardb.cn/tools/metharct-beta) for protein-based functional prediction of methanogenic archaea.
+
+Access MethArCT v0.6.0 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
 ## Key Features
 
@@ -17,8 +17,8 @@ Access MethArCT v0.6.0 online at [http://methardb.cn/tools/metharct-beta](http:/
 - **Cultivability Assessment**: Evaluation of culture difficulty based on metabolic pathways
 
 ### Extended Features (Optional)
+- **Temperature Prediction**: Growth temperature range prediction (T_min, T_opt, T_max) based on AAC and dipeptide composition using Huainanzi Bayesian Ridge / Ridge regression model
 - **Salinity Prediction**: Microbial salinity adaptation prediction based on amino acid composition features using SuSha ensemble learning model
-- **Temperature Prediction**: Optimal Growth Temperature (OGT) prediction — requires Tome tool
 - **pH Prediction**: Growth pH preference prediction (optimum, maximum, minimum) based on genome-wide amino acid composition features using GenomeSpot Lasso regression models
 - **Antibiotic Resistance Prediction**: Supports prediction of Bacitracin, Tunicamycin, and Vanadate resistance.
 - **Genome Quality Assessment**: Genome completeness and contamination estimation based on CheckM2 — requires CheckM2 tool
@@ -41,7 +41,6 @@ metharct comprehensive "protein.faa" -o results/
 - **Operating System**: Windows, Linux
 
 ### Optional Tools
-- **Tome**: For OGT prediction (optional)
 - **CheckM2**: For genome quality assessment (optional)
 
 ## Quick Installation
@@ -108,7 +107,7 @@ Extract "checkm2_db.zip" to the root directory of the MethArCT folder.
 metharct diamond "protein.faa" -o results/
 
 # Comprehensive analysis (skip optional tools)
-metharct comprehensive "protein.faa" -o results/ --skip-tome --skip-checkm2 --skip-antibiotic
+metharct comprehensive "protein.faa" -o results/ --skip-checkm2 --skip-antibiotic
 ```
 
 **Full Analysis (with optional tools)**:
@@ -120,7 +119,6 @@ metharct comprehensive "protein.faa" -o results/
 metharct susha "protein.faa" -o results/         # Salinity prediction
 metharct ph "protein.faa" -o results/            # pH preference prediction
 metharct antibiotic "protein.faa" -o results/    # Antibiotic resistance prediction
-metharct tome "protein.faa" -o results/          # Requires Tome
 metharct checkm2 "genome.fasta" -o results/      # Requires CheckM2
 ```
 
@@ -189,7 +187,6 @@ print(results)
 **Optional Feature Outputs**:
 - SuSha salinity results: `[filename]_SuSha_Summary.tsv` and `[filename]_SuSha_Result.xlsx`
 - pH preference results: `[filename]_pH_Summary.tsv` and `[filename]_pH_Details.json`
-- Tome results in `[filename]_tome/` directory
 - CheckM2 results in `[filename]_checkm2/` directory with `quality_report.tsv`
 
 ## Troubleshooting
@@ -231,6 +228,11 @@ The SuSha ensemble model requires `imbalanced-learn`. Make sure it is installed:
 pip install imbalanced-learn>=0.10.0
 ```
 
+**Huainanzi temperature prediction not available**:
+```bash
+pip install scikit-learn>=1.0 numpy>=1.20
+```
+
 ## LoongArch Support
 
 > **Note**: The LoongArch branch currently supports only the following processors:
@@ -245,11 +247,11 @@ MethArCT/
 │   ├── core/                       # Core analysis modules
 │   │   ├── antibiotic_analyzer.py  # Antibiotic resistance prediction (AAI-based)
 │   │   ├── susha/                  # SuSha salinity prediction (embedded)
+│   │   ├── huainanzi/              # Huainanzi temperature prediction (embedded)
 │   │   └── ph_predictor/           # pH prediction engine (embedded, GenomeSpot-based)
 │   │       ├── models/             # Pre-trained Lasso regression models
 │   │       └── hmm/                # Signal peptide HMM model
 │   └── utils/                      # Utility functions
-├── Tome-1.1.0/                     # Tome OGT prediction module
 ├── data/                           # Reference databases
 │   ├── databases/                  # Diamond databases
 │   │   └── kangshengsu/            # Methanogen reference genomes for antibiotic prediction
@@ -266,10 +268,9 @@ This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**
 
 **License history:**
 - Versions **≤ 0.5.5** were released under the **MIT License** — see [LICENSE-MIT](LICENSE-MIT) for the original terms.
-- Starting from version **0.6.0**, the project is relicensed under **GPL-3.0** to comply with GPL-3.0 licensed dependencies (Tome, CheckM2).
+- Starting from version **0.6.0**, the project is relicensed under **GPL-3.0** to comply with GPL-3.0 licensed dependencies (CheckM2).
 
 **Third-party components:**
-- **Tome** (OGT prediction) — GPL-3.0
 - **CheckM2** (genome quality assessment) — GPL-3.0
 
 ## Citation

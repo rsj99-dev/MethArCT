@@ -42,7 +42,7 @@ def get_version():
             for line in f:
                 if line.startswith("__version__"):
                     return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.6.4"
+    return "0.7.0"
 
 setup(
     name="metharct",
@@ -103,6 +103,7 @@ setup(
         "metharct": [
             "data/databases/**/*",
             "core/susha/models/*.pkl",
+            "core/huainanzi/models/*.pkl",
             "core/ph_predictor/models/*.joblib",
             "core/ph_predictor/hmm/*.joblib",
             "*.yaml",
@@ -119,11 +120,11 @@ setup(
         "metabolic pathways",
         "diamond",
         "genome analysis",
-        "temperature prediction",
         "salinity prediction",
+        "temperature prediction",
+        "huainanzi",
         "pH prediction",
         "checkm2",
-        "tome",
         "susha",
     ],
     zip_safe=False,

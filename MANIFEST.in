@@ -13,6 +13,7 @@ recursive-include metharct *.py
 recursive-include metharct *.yaml
 recursive-include metharct *.yml
 recursive-include metharct/core/susha/models *.pkl
+recursive-include metharct/core/huainanzi/models *.pkl
 recursive-include metharct/core/ph_predictor/models *.joblib
 recursive-include metharct/core/ph_predictor/hmm *.joblib
 
@@ -22,7 +23,6 @@ global-exclude *.pyc
 global-exclude *.pyo
 
 # Exclude external tools and large data
-prune Tome-1.1.0
 prune data
 prune results
 prune build

@@ -2,7 +2,7 @@
 """
 MethArCT Main Analyzer
 
-Primary analysis class integrating Diamond, Tome, CheckM2, Antibiotic and other analysis tools
+Primary analysis class integrating Diamond, CheckM2, Antibiotic and other analysis tools
 """
 
 import os
@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .core.diamond_analyzer import DiamondAnalyzer
-from .core.tome_analyzer import TomeAnalyzer
 from .core.checkm2_analyzer import CheckM2Analyzer
 from .core.antibiotic_analyzer import AntibioticAnalyzer
+from .core.huainanzi_analyzer import HuainanziAnalyzer
 from .core.pathway_predictor import PathwayPredictor
 from .utils.config import Config
 from .utils.logger import get_logger
@@ -39,9 +39,9 @@ class MethArCTAnalyzer:
         
         # Initialize each analyzer
         self.diamond_analyzer = DiamondAnalyzer(self.config)
-        self.tome_analyzer = TomeAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
         self.antibiotic_analyzer = AntibioticAnalyzer(self.config)
+        self.huainanzi_analyzer = HuainanziAnalyzer(self.config)
         self.pathway_predictor = PathwayPredictor(self.config)
         
         # Results output directory
@@ -54,7 +54,6 @@ class MethArCTAnalyzer:
                             input_file: str,
                             output_dir: Optional[str] = None,
                             run_diamond: bool = True,
-                            run_tome: bool = True,
                             run_checkm2: bool = True,
                             run_antibiotic: bool = True,
                             **kwargs) -> Dict:
@@ -65,7 +64,6 @@ class MethArCTAnalyzer:
             input_file: Input file path (FASTA format)
             output_dir: Output directory, uses default if None
             run_diamond: Whether to run Diamond analysis
-            run_tome: Whether to run Tome analysis
             run_checkm2: Whether to run CheckM2 analysis
             run_antibiotic: Whether to run antibiotic resistance prediction
             **kwargs: Other parameters
@@ -96,15 +94,6 @@ class MethArCTAnalyzer:
                 )
                 results['analysis_results']['diamond'] = diamond_results
                 
-            # Tome temperature prediction analysis
-            if run_tome:
-                self.logger.info("Running Tome temperature prediction analysis...")
-                tome_results = self.tome_analyzer.analyze(
-                    input_file,
-                    os.path.join(output_dir, 'tome')
-                )
-                results['analysis_results']['tome'] = tome_results
-                
             # CheckM2 genome quality assessment
             if run_checkm2:
                 self.logger.info("Running CheckM2 genome quality assessment...")
@@ -129,7 +118,6 @@ class MethArCTAnalyzer:
                 pathway_results = self.pathway_predictor.predict_comprehensive(
                     input_path=input_file,
                     output_prefix=os.path.basename(input_file).replace('.faa', ''),
-                    include_tome=False,
                     include_checkm2=False
                 )
                 results['analysis_results']['pathways'] = pathway_results
@@ -163,22 +151,6 @@ class MethArCTAnalyzer:
             output_dir = os.path.join(self.results_dir, 'diamond')
             
         return self.diamond_analyzer.analyze_sequence(input_file, output_dir)
-    
-    def analyze_tome(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
-        """
-        Execute Tome analysis only
-        
-        Args:
-            input_file: Input file path
-            output_dir: Output directory
-            
-        Returns:
-            Tome analysis results
-        """
-        if output_dir is None:
-            output_dir = os.path.join(self.results_dir, 'tome')
-            
-        return self.tome_analyzer.analyze(input_file, output_dir)
     
     def analyze_checkm2(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
         """

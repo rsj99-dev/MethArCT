@@ -17,10 +17,10 @@ try:
     from metharct.utils.logger import setup_logger
     from .commands import (
         diamond_command,
-        tome_command,
         checkm2_command,
         comprehensive_command,
         susha_command,
+        huainanzi_command,
         ph_command,
         antibiotic_command,
         batch_command,
@@ -46,9 +46,11 @@ Examples:
   # Comprehensive analysis (recommended)
   metharct comprehensive input.fasta -o results
   
+  # Temperature prediction
+  metharct huainanzi input.fasta -o temp_results
+  
   # Individual analyses
   metharct diamond input.fasta -o diamond_results
-  metharct tome input.fasta -o tome_results
   metharct susha input.fasta -o susha_results
   metharct ph input.fasta -o ph_results
   metharct antibiotic input.fasta -o antibiotic_results
@@ -94,7 +96,7 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     # Comprehensive analysis command
     comprehensive_parser = subparsers.add_parser(
         'comprehensive',
-        help='Run comprehensive analysis (Diamond + Tome + SuSha + pH + CheckM2)',
+        help='Run comprehensive analysis (Diamond + Huainanzi + SuSha + pH + CheckM2)',
         description='Perform comprehensive metabolic pathway prediction, temperature analysis, salinity prediction, pH prediction, and genome quality assessment'
     )
     _add_comprehensive_args(comprehensive_parser)
@@ -106,14 +108,6 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         description='Analyze metabolic pathways and cultivability using Diamond BLAST'
     )
     _add_diamond_args(diamond_parser)
-    
-    # Tome analysis command
-    tome_parser = subparsers.add_parser(
-        'tome',
-        help='Run Tome analysis for optimal growth temperature prediction',
-        description='Predict optimal growth temperature using Tome tool'
-    )
-    _add_tome_args(tome_parser)
     
     # CheckM2 analysis command
     checkm2_parser = subparsers.add_parser(
@@ -138,6 +132,14 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         description='Predict microbial salinity adaptation using SuSha ensemble learning model'
     )
     _add_susha_args(susha_parser)
+
+    # Huainanzi temperature prediction command
+    huainanzi_parser = subparsers.add_parser(
+        'huainanzi',
+        help='Run Huainanzi growth temperature range prediction',
+        description='Predict microbial growth temperature range (T_min, T_opt, T_max) using Huainanzi AAC+DC model'
+    )
+    _add_huainanzi_args(huainanzi_parser)
 
     # pH preference prediction command
     ph_parser = subparsers.add_parser(
@@ -181,12 +183,6 @@ def _add_comprehensive_args(parser: argparse.ArgumentParser):
     )
     
     parser.add_argument(
-        '--skip-tome',
-        action='store_true',
-        help='Skip Tome temperature analysis'
-    )
-    
-    parser.add_argument(
         '--skip-checkm2',
         action='store_true',
         help='Skip CheckM2 genome quality analysis'
@@ -196,6 +192,12 @@ def _add_comprehensive_args(parser: argparse.ArgumentParser):
         '--skip-susha',
         action='store_true',
         help='Skip SuSha salinity prediction'
+    )
+
+    parser.add_argument(
+        '--skip-huainanzi',
+        action='store_true',
+        help='Skip Huainanzi temperature prediction'
     )
 
     parser.add_argument(
@@ -260,28 +262,6 @@ def _add_diamond_args(parser: argparse.ArgumentParser):
         help='Maximum number of target sequences (default: 10)'
     )
 
-def _add_tome_args(parser: argparse.ArgumentParser):
-    """Add arguments for Tome analysis command"""
-    parser.add_argument(
-        'input',
-        type=str,
-        help='Input FASTA file path (protein sequences)'
-    )
-    
-    parser.add_argument(
-        '-o', '--output',
-        type=str,
-        required=True,
-        help='Output directory or file prefix'
-    )
-    
-    parser.add_argument(
-        '--batch-size',
-        type=int,
-        default=100,
-        help='Batch size for processing sequences (default: 100)'
-    )
-
 def _add_cultivation_args(parser: argparse.ArgumentParser):
     """
     Add arguments for cultivation command
@@ -336,6 +316,21 @@ def _add_cultivation_args(parser: argparse.ArgumentParser):
 
 def _add_susha_args(parser: argparse.ArgumentParser):
     """Add arguments for SuSha salinity prediction command"""
+    parser.add_argument(
+        'input',
+        type=str,
+        help='Input FASTA file path (protein sequences)'
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        required=True,
+        help='Output file prefix'
+    )
+
+def _add_huainanzi_args(parser: argparse.ArgumentParser):
+    """Add arguments for Huainanzi temperature prediction command"""
     parser.add_argument(
         'input',
         type=str,
@@ -615,9 +610,9 @@ def main():
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config,
-                    skip_tome=args.skip_tome,
                     skip_checkm2=args.skip_checkm2,
                     skip_susha=getattr(args, 'skip_susha', False),
+                    skip_huainanzi=getattr(args, 'skip_huainanzi', False),
                     skip_ph=getattr(args, 'skip_ph', False),
                     skip_antibiotic=getattr(args, 'skip_antibiotic', False)
                 )
@@ -627,14 +622,6 @@ def main():
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config
-                )
-            
-            elif args.command == 'tome':
-                tome_command(
-                    input_path=str(input_path),
-                    output_prefix=output_prefix,
-                    config=config,
-                    batch_size=getattr(args, 'batch_size', 100)
                 )
             
             elif args.command == 'checkm2':
@@ -675,6 +662,13 @@ def main():
             
             elif args.command == 'susha':
                 susha_command(
+                    input_path=str(input_path),
+                    output_prefix=output_prefix,
+                    config=config
+                )
+
+            elif args.command == 'huainanzi':
+                huainanzi_command(
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config

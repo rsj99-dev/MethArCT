@@ -10,17 +10,14 @@ tools:
     evalue: 1.0e-5
     max_target_seqs: 1
     identity_threshold: 30.0
-  tome:
-    path: "tome"
-    wsl_path: "wsl tome"
-    use_wsl: false
-    threads: 4
   checkm2:
     path: "checkm2"
     wsl_path: "wsl checkm2"
     use_wsl: false
     threads: 4
   susha:
+    enabled: true
+  huainanzi:
     enabled: true
   ph:
     enabled: true

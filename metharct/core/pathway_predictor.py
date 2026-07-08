@@ -3,7 +3,7 @@
 """
 Pathway predictor for MethArCT
 
-Integrates Diamond, Cultivation, Tome, SuSha, pH, Antibiotic and CheckM2 analysis results to provide comprehensive
+Integrates Diamond, Cultivation, SuSha, Huainanzi, pH, Antibiotic and CheckM2 analysis results to provide comprehensive
 metabolic pathway predictions and cultivability assessments.
 """
 
@@ -17,8 +17,8 @@ from ..utils.logger import get_logger
 from ..utils.file_utils import FileUtils, NumpyEncoder
 from .diamond_analyzer import DiamondAnalyzer
 from .cultivation_analyzer import CultivationAnalyzer
-from .tome_analyzer import TomeAnalyzer
 from .susha_analyzer import SuShaAnalyzer
+from .huainanzi_analyzer import HuainanziAnalyzer
 from .ph_analyzer import PHAnalyzer
 from .checkm2_analyzer import CheckM2Analyzer
 from .antibiotic_analyzer import AntibioticAnalyzer
@@ -33,8 +33,8 @@ class PathwayPredictor:
         # Initialize analyzers
         self.diamond_analyzer = DiamondAnalyzer(self.config)
         self.cultivation_analyzer = CultivationAnalyzer(self.config.config)
-        self.tome_analyzer = TomeAnalyzer(self.config)
         self.susha_analyzer = SuShaAnalyzer(self.config)
+        self.huainanzi_analyzer = HuainanziAnalyzer(self.config)
         self.ph_analyzer = PHAnalyzer(self.config)
         self.checkm2_analyzer = CheckM2Analyzer(self.config)
         self.antibiotic_analyzer = AntibioticAnalyzer(self.config)
@@ -53,10 +53,10 @@ class PathwayPredictor:
     def predict_comprehensive(self, 
                             input_path: Union[str, Path],
                             output_prefix: Optional[str] = None,
-                            include_tome: bool = True,
                             include_checkm2: bool = True,
                             include_cultivation: bool = True,
                             include_susha: bool = True,
+                            include_huainanzi: bool = True,
                             include_ph: bool = True,
                             include_antibiotic: bool = True) -> Dict[str, any]:
         """
@@ -65,10 +65,10 @@ class PathwayPredictor:
         Args:
             input_path: Path to input FASTA file
             output_prefix: Prefix for output files
-            include_tome: Whether to include Tome analysis
             include_checkm2: Whether to include CheckM2 analysis
             include_cultivation: Whether to include Cultivation analysis
             include_susha: Whether to include SuSha salinity prediction
+            include_huainanzi: Whether to include Huainanzi temperature prediction
             include_ph: Whether to include pH preference prediction
             include_antibiotic: Whether to include antibiotic resistance prediction
 
@@ -149,24 +149,7 @@ class PathwayPredictor:
                     'error': str(e)
                 }
         
-        # 2. Tome analysis (optimal growth temperature)
-        if include_tome:
-            try:
-                self.logger.info("Running Tome analysis...")
-                tome_results = self.tome_analyzer.predict_ogt(
-                    input_file=input_path, output_prefix=output_prefix
-                )
-                comprehensive_results['analyses_performed'].append('tome')
-                comprehensive_results['results']['tome'] = tome_results
-                self.logger.info("Tome analysis completed")
-            except Exception as e:
-                self.logger.error(f"Tome analysis failed: {str(e)}")
-                comprehensive_results['results']['tome'] = {
-                    'status': 'failed',
-                    'error': str(e)
-                }
-        
-        # 3. SuSha analysis (salinity adaptation)
+        # 2. SuSha analysis (salinity adaptation)
         if include_susha:
             try:
                 self.logger.info("Running SuSha salinity prediction...")
@@ -183,6 +166,27 @@ class PathwayPredictor:
             except Exception as e:
                 self.logger.error(f"SuSha analysis failed: {str(e)}")
                 comprehensive_results['results']['susha'] = {
+                    'status': 'failed',
+                    'error': str(e)
+                }
+        
+        # 3. Huainanzi analysis (growth temperature range)
+        if include_huainanzi:
+            try:
+                self.logger.info("Running Huainanzi temperature prediction...")
+                huainanzi_results = self.huainanzi_analyzer.predict_temperature(
+                    input_file=input_path, output_prefix=output_prefix
+                )
+                if huainanzi_results.get('status') != 'failed':
+                    comprehensive_results['analyses_performed'].append('huainanzi')
+                    comprehensive_results['results']['huainanzi'] = huainanzi_results
+                    self.logger.info("Huainanzi temperature prediction completed")
+                else:
+                    comprehensive_results['results']['huainanzi'] = huainanzi_results
+                    self.logger.warning(f"Huainanzi prediction failed: {huainanzi_results.get('error')}")
+            except Exception as e:
+                self.logger.error(f"Huainanzi prediction failed: {str(e)}")
+                comprehensive_results['results']['huainanzi'] = {
                     'status': 'failed',
                     'error': str(e)
                 }
@@ -296,14 +300,6 @@ class PathwayPredictor:
                     diamond_data['pathway_analysis']
                 )
         
-        # Process Tome results
-        if 'tome' in analysis_results and 'status' not in analysis_results['tome']:
-            tome_data = analysis_results['tome']
-            
-            if 'temperature_predictions' in tome_data:
-                integrated['environmental_adaptation']['temperature'] = \
-                    self._process_temperature_data(tome_data['temperature_predictions'])
-        
         # Process SuSha results
         if 'susha' in analysis_results and analysis_results['susha'].get('status') != 'failed':
             susha_data = analysis_results['susha']
@@ -313,6 +309,18 @@ class PathwayPredictor:
                 'salinity_index': prediction.get('salinity_index', -1),
                 'confidence': prediction.get('confidence', 0),
                 'top3_predictions': susha_data.get('top3_predictions', []),
+            }
+
+        # Process Huainanzi results (temperature)
+        if 'huainanzi' in analysis_results and analysis_results['huainanzi'].get('status') != 'failed':
+            hz_data = analysis_results['huainanzi']
+            hz_prediction = hz_data.get('prediction', {})
+            integrated['environmental_adaptation']['temperature'] = {
+                'T_min': hz_prediction.get('T_min'),
+                'T_opt': hz_prediction.get('T_opt'),
+                'T_max': hz_prediction.get('T_max'),
+                'temperature_category': hz_data.get('summary', {}).get('temperature_category'),
+                'confidence': 0.85,  # model confidence
             }
 
         # Process pH results
@@ -564,7 +572,7 @@ class PathwayPredictor:
         if not temperature_data:
             return {'status': 'no_data'}
         
-        # Extract OGT: support both 'average_ogt' and Tome's 'predOGT' key name
+        # Extract OGT
         avg_ogt = temperature_data.get('average_ogt')
         if avg_ogt is None:
             avg_ogt = temperature_data.get('predOGT', 0)
@@ -978,11 +986,6 @@ class PathwayPredictor:
                             f.write(f"  Total pathways detected: {summary.get('total_pathways', 0)}\n")
                             f.write(f"  Methane pathways: {summary.get('methane_pathways', 0)}\n")
                         
-                        elif analysis_type == 'tome' and 'summary' in analysis_data:
-                            summary = analysis_data['summary']
-                            f.write(f"  Average OGT: {summary.get('average_ogt', 0):.1f}°C\n")
-                            f.write(f"  Temperature category: {summary.get('temperature_category', 'Unknown')}\n")
-                        
                         elif analysis_type == 'susha':
                             susha_pred = analysis_data.get('prediction', {})
                             f.write(f"  Predicted salinity: {susha_pred.get('salinity_label', 'Unknown')}\n")
@@ -992,6 +995,13 @@ class PathwayPredictor:
                                 f.write("  Top 3 predictions:\n")
                                 for t in top3:
                                     f.write(f"    {t['rank']}. {t['label']}: {t['probability']:.2%}\n")
+
+                        elif analysis_type == 'huainanzi':
+                            hz_pred = analysis_data.get('prediction', {})
+                            f.write(f"  T_min (最低生长温度): {hz_pred.get('T_min', 'N/A')} °C\n")
+                            f.write(f"  T_opt (最适生长温度): {hz_pred.get('T_opt', 'N/A')} °C\n")
+                            f.write(f"  T_max (最高生长温度): {hz_pred.get('T_max', 'N/A')} °C\n")
+                            f.write(f"  Category: {analysis_data.get('summary', {}).get('temperature_category', 'N/A')}\n")
 
                         elif analysis_type == 'ph':
                             ph_pred = analysis_data.get('prediction', {})
