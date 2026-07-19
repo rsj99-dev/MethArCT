@@ -12,7 +12,7 @@ from .commands import (
     checkm2_command,
     comprehensive_command,
     susha_command,
-    huainanzi_command,
+    mlhuainanzi_command,
     ph_command,
     antibiotic_command,
     cultivation_command
@@ -25,7 +25,7 @@ __all__ = [
     'checkm2_command',
     'comprehensive_command',
     'susha_command',
-    'huainanzi_command',
+    'mlhuainanzi_command',
     'ph_command',
     'antibiotic_command',
     'cultivation_command'

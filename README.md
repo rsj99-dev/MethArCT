@@ -8,7 +8,7 @@
 
 MethArCT (Methanogenic Archaeal Culturomics Toolkit) is a comprehensive toolbox designed for metagenomic and genomic analysis of methanogenic archaea. It integrates multiple bioinformatics analysis functions to predict microbial metabolic pathways, optimal growth temperature, salinity adaptation, pH preference, antibiotic resistance, and cultivability.
 
-Access MethArCT v0.6.0 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
+Access MethArCT v0.7.1 online at [http://methardb.cn/tools/diamond](http://methardb.cn/tools/diamond) for protein-based functional prediction of methanogenic archaea.
 
 ## Key Features
 
@@ -17,7 +17,7 @@ Access MethArCT v0.6.0 online at [http://methardb.cn/tools/diamond](http://metha
 - **Cultivability Assessment**: Evaluation of culture difficulty based on metabolic pathways
 
 ### Extended Features (Optional)
-- **Temperature Prediction**: Growth temperature range prediction (T_min, T_opt, T_max) based on AAC and dipeptide composition using Huainanzi Bayesian Ridge / Ridge regression model
+- **Temperature Prediction**: Growth temperature range prediction (T_min, T_opt, T_max) based on AAC and dipeptide composition using the MLHuaiNanzi PLS regression model
 - **Salinity Prediction**: Microbial salinity adaptation prediction based on amino acid composition features using SuSha ensemble learning model
 - **pH Prediction**: Growth pH preference prediction (optimum, maximum, minimum) based on genome-wide amino acid composition features using GenomeSpot Lasso regression models
 - **Antibiotic Resistance Prediction**: Supports prediction of Bacitracin, Tunicamycin, and Vanadate resistance.
@@ -228,7 +228,7 @@ The SuSha ensemble model requires `imbalanced-learn`. Make sure it is installed:
 pip install imbalanced-learn>=0.10.0
 ```
 
-**Huainanzi temperature prediction not available**:
+**MLHuaiNanzi temperature prediction not available**:
 ```bash
 pip install scikit-learn>=1.0 numpy>=1.20
 ```
@@ -247,7 +247,7 @@ MethArCT/
 │   ├── core/                       # Core analysis modules
 │   │   ├── antibiotic_analyzer.py  # Antibiotic resistance prediction (AAI-based)
 │   │   ├── susha/                  # SuSha salinity prediction (embedded)
-│   │   ├── huainanzi/              # Huainanzi temperature prediction (embedded)
+│   │   ├── mlhuainanzi/              # MLHuaiNanzi temperature prediction (embedded)
 │   │   └── ph_predictor/           # pH prediction engine (embedded, GenomeSpot-based)
 │   │       ├── models/             # Pre-trained Lasso regression models
 │   │       └── hmm/                # Signal peptide HMM model

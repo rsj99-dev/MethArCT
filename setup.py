@@ -42,7 +42,7 @@ def get_version():
             for line in f:
                 if line.startswith("__version__"):
                     return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.7.0"
+    return "0.7.1"
 
 setup(
     name="metharct",
@@ -103,7 +103,7 @@ setup(
         "metharct": [
             "data/databases/**/*",
             "core/susha/models/*.pkl",
-            "core/huainanzi/models/*.pkl",
+            "core/mlhuainanzi/models/*.pkl",
             "core/ph_predictor/models/*.joblib",
             "core/ph_predictor/hmm/*.joblib",
             "*.yaml",

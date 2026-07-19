@@ -474,9 +474,9 @@ class PathwayPredictor:
             Dict with methane/sulfur/nitrogen completeness info
         """
         methane_keys = [
-            'CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4',
-            'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4',
-            'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
+            'CO2-CH4', 'Methylamine', 'Methanol', 'Methanethiol',
+            'Acetate', 'Alkane', 'CO-CH4', 'Formate',
+            'Methoxy', 'Fatty_acid', 'Dimethylamine', 'Trimethylamine',
             'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis',
             'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'
         ]

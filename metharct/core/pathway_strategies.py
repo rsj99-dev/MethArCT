@@ -52,8 +52,8 @@ def _strict_hits(hits: pd.DataFrame, gene: str,
 # ------------------------------------------------------------------
 
 PATHWAY_STRATEGIES: Dict[str, Dict[str, Any]] = {
-    # ── JIASUAN-CH4 (Formate methanogenesis) ──────────────────────
-    'JIASUAN-CH4': {
+    # ── Formate (Formate methanogenesis) ────────────────────────
+    'Formate': {
         'weighted_genes': [
             {'genes': ['FwdF', 'FwdG', 'FwdH'], 'weight': 15},
             {'genes': ['Hmd', 'Mtd'], 'weight': 15},
@@ -75,8 +75,8 @@ PATHWAY_STRATEGIES: Dict[str, Dict[str, Any]] = {
         'base_weight': 60,
         'complete_score': 80,
     },
-    # ── JIALIUCHUN-CH4 (Methanethiol methanogenesis) ────────────
-    'JIALIUCHUN-CH4': {
+    # ── Methanethiol (Methanethiol methanogenesis) ──────────────
+    'Methanethiol': {
         'strict_genes': [
             {'gene': 'MtsA1', 'min_bitscore': 200, 'max_evalue': 1e-100, 'weight': 0},
             {'gene': 'MtsA2', 'min_bitscore': 200, 'max_evalue': 1e-100, 'weight': 0},
@@ -113,6 +113,33 @@ PATHWAY_STRATEGIES: Dict[str, Dict[str, Any]] = {
             'Ftr', 'Mch', 'Hmd', 'Mtd', 'elpB', 'elpC',
         ],
     },
+    # ── Acetate (Acetate methanogenesis) ─────────────────────
+    # Step 1: ACS1_2 alone covers acetate activation; without it, both Pta + AckA required
+    # Step 2: CODH/ACS subunits CdhC, CdhE, CdhD (all required)
+    # Step 3: Methyl transfer complex MtrA–MtrH (all required)
+    'Acetate': {
+        'step_logic': [
+            {
+                'name': 'Acetate activation',
+                'mode': 'custom',
+                'check': lambda found: (
+                    'ACS1_2' in found or
+                    ('Pta' in found and 'AckA' in found)
+                ),
+            },
+            {
+                'name': 'CODH/ACS complex',
+                'mode': 'all',
+                'genes': ['CdhC', 'CdhE', 'CdhD'],
+            },
+            {
+                'name': 'Methyl transfer complex',
+                'mode': 'all',
+                'genes': ['MtrA', 'MtrB', 'MtrC', 'MtrD',
+                          'MtrE', 'MtrF', 'MtrG', 'MtrH'],
+            },
+        ],
+    },
 }
 
 
@@ -131,7 +158,7 @@ def evaluate_pathway(
     Parameters
     ----------
     db_name : str
-        Pathway database key (e.g. ``'JIASUAN-CH4'``).
+        Pathway database key (e.g. ``'Formate'``).
     low_threshold_hits : pd.DataFrame
         Diamond hits that passed the low-threshold filter.
     reference_count : int
@@ -151,14 +178,14 @@ def evaluate_pathway(
 
     unique_hits = _unique_sseqid(low_threshold_hits)
 
-    # ── JIASUAN-CH4 / CO2-CH4: weighted scoring ─────────────────
+    # ── Formate / CO2-CH4: weighted scoring ──────────────────
     if 'base_weight' in strategy:
         return _evaluate_weighted(
             db_name, low_threshold_hits, unique_hits,
             reference_count, strategy, logger,
         )
 
-    # ── JIALIUCHUN-CH4: MtsA + MCR genes ────────────────────────
+    # ── Methanethiol: MtsA + MCR genes ─────────────────────────
     if 'mcr_genes' in strategy:
         return _evaluate_mcr(
             db_name, low_threshold_hits, unique_hits,
@@ -199,6 +226,13 @@ def evaluate_pathway(
         _debug(logger, f"{db_name}: Conditions not met, using actual count {actual}")
         return min(actual, reference_count)
 
+    # ── Acetate: step-based logic (ACS1_2 vs Pta+AckA) ──────
+    if 'step_logic' in strategy:
+        return _evaluate_step_based(
+            db_name, low_threshold_hits, unique_hits,
+            reference_count, strategy, logger,
+        )
+
     # Fallback
     return len(low_threshold_hits.drop_duplicates(subset=['sseqid']))
 
@@ -208,7 +242,7 @@ def evaluate_pathway(
 # ------------------------------------------------------------------
 
 def _evaluate_weighted(db_name, hits, unique_hits, ref_count, strategy, logger):
-    """Weighted scoring for JIASUAN-CH4 and CO2-CH4."""
+    """Weighted scoring for Formate and CO2-CH4."""
     base_weight = strategy['base_weight']
     complete_score = strategy.get('complete_score', 80)
 
@@ -249,7 +283,7 @@ def _evaluate_weighted(db_name, hits, unique_hits, ref_count, strategy, logger):
 
 
 def _evaluate_mcr(db_name, hits, unique_hits, ref_count, strategy, logger):
-    """MCR-based evaluation for JIALIUCHUN-CH4."""
+    """MCR-based evaluation for Methanethiol."""
     # Strict gene checks
     strict_present = {}
     for sg in strategy.get('strict_genes', []):
@@ -279,6 +313,56 @@ def _evaluate_mcr(db_name, hits, unique_hits, ref_count, strategy, logger):
     else:
         _debug(logger, f"{db_name}: Conditions not fully met, using actual {len(unique_hits)}")
     return adjusted
+
+
+def _evaluate_step_based(db_name, hits, unique_hits, ref_count, strategy, logger):
+    """Step-based evaluation for Acetate (acetate methanogenesis).
+
+    Each step in ``strategy['step_logic']`` is independently evaluated.
+    - mode 'all'  : every listed gene must be present
+    - mode 'any'  : at least one listed gene must be present
+    - mode 'custom': a lambda ``check(found_set) -> bool`` decides
+
+    If all steps are satisfied → ref_count (100 %).
+    Otherwise → sum of matched genes from satisfied steps only.
+    """
+    steps = strategy['step_logic']
+    total_matched = 0
+    all_satisfied = True
+
+    for step in steps:
+        mode = step['mode']
+        satisfied = False
+        matched = 0
+
+        if mode == 'all':
+            genes = step['genes']
+            matched = sum(1 for g in genes if g in unique_hits)
+            satisfied = (matched == len(genes))
+        elif mode == 'any':
+            genes = step['genes']
+            matched = sum(1 for g in genes if g in unique_hits)
+            satisfied = matched >= 1
+        elif mode == 'custom':
+            satisfied = step['check'](unique_hits)
+            # For custom mode, count all genes in the step that are found
+            # (we don't have an explicit gene list, so count all unique hits)
+            matched = len(unique_hits) if satisfied else 0
+
+        _debug(logger, f"{db_name} [{step['name']}]: "
+                       f"mode={mode}, satisfied={satisfied}, matched={matched}")
+
+        if satisfied:
+            total_matched += matched
+        else:
+            all_satisfied = False
+
+    if all_satisfied:
+        _debug(logger, f"{db_name}: All steps satisfied -> ref_count={ref_count}")
+        return ref_count
+
+    _debug(logger, f"{db_name}: Steps not all satisfied, matched={total_matched}")
+    return min(total_matched, ref_count)
 
 
 def _debug(logger, msg: str):

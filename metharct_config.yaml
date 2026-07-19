@@ -26,13 +26,13 @@ databases:
   base_dir: "data/databases"
   pathway_names:
     "CO2-CH4": "CO2 reduction methanogenesis"
-    "JIAAN-CH4": "Methylamine methanogenesis"
-    "JIACHUN-CH4": "Methanol methanogenesis"
-    "JIALIUCHUN-CH4": "Methanethiol methanogenesis"
-    "JIASUAN-CH4": "Formate methanogenesis"
-    "JIAYANGJI-CH4": "Methoxy methanogenesis"
-    "YISUAN-CH4": "Acetate methanogenesis"
-    "C16-CH4": "Long-chain fatty acid methanogenesis"
+    "Methylamine": "Methylamine methanogenesis"
+    "Methanol": "Methanol methanogenesis"
+    "Methanethiol": "Methanethiol methanogenesis"
+    "Formate": "Formate methanogenesis"
+    "Methoxy": "Methoxy methanogenesis"
+    "Acetate": "Acetate methanogenesis"
+    "Alkane": "Long-chain fatty acid methanogenesis"
     "CO-CH4": "CO methanogenesis"
     "Glycine betaine methanogenesis": "Glycine betaine methanogenesis"
     "Methylthiopropionate methanogenesis": "Methylthiopropionate methanogenesis"
@@ -40,21 +40,21 @@ databases:
     "Methanol dismutation methanogenesis": "Methanol dismutation methanogenesis"
   methane_pathways:
     CO2-CH4: "methane/processed_CO2-CH4.fasta"
-    JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
-    JIACHUN-CH4: "methane/processed_JIACHUN-CH4.fasta"
-    JIALIUCHUN-CH4: "methane/processed_JIALIUCHUN-CH4.fasta"
-    YISUAN-CH4: "methane/processed_YISUAN-CH4.fasta"
-    C16-CH4: "methane/processed_C16-CH4.fasta"
+    Methylamine: "methane/Methylamine.fasta"
+    Methanol: "methane/Methanol.fasta"
+    Methanethiol: "methane/Methanethiol.fasta"
+    Acetate: "methane/Acetate.fasta"
+    Alkane: "methane/Alkane.fasta"
     CO-CH4: "methane/processed_CO-CH4.fasta"
-    JIASUAN-CH4: "methane/processed_JIASUAN-CH4.fasta"
-    JIAYANGJI-CH4: "methane/processed_JIAYANGJI-CH4.fasta"
-    ZHIFANGSUAN-CH4: "methane/processed_ZHIFANGSUAN-CH4.fasta"
-    2JIAAN-CH4: "methane/processed_2JIAAN-CH4.fasta"
-    3JIAAN-CH4: "methane/processed_3JIAAN-CH4.fasta"
-    Glycine betaine methanogenesis: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
-    Methylthiopropionate methanogenesis: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
-    Tetramethylammonium methanogenesis: "methane/四甲基铵产甲烷.fasta"
-    Methanol dismutation methanogenesis: "methane/processed_甲醇歧化产甲烷.fasta"
+    Formate: "methane/Formate.fasta"
+    Methoxy: "methane/Methoxy.fasta"
+    Fatty_acid: "methane/Fatty_acid.fasta"
+    Dimethylamine: "methane/Dimethylamine.fasta"
+    Trimethylamine: "methane/Trimethylamine.fasta"
+    Glycine betaine methanogenesis: "methane/processed_Glycine_betaine_methanogenesis.fasta"
+    Methylthiopropionate methanogenesis: "methane/processed_Methylthiopropionate_methanogenesis.fasta"
+    Tetramethylammonium methanogenesis: "methane/Tetramethylammonium_methanogenesis.fasta"
+    Methanol dismutation methanogenesis: "methane/processed_Methanol_dismutation_methanogenesis.fasta"
   sulfur_pathways:
     ASR: "sulfur/Assimilatory sulfate reduction.fasta"
     SO: "sulfur/Sulfide oxidation.fasta"
@@ -79,7 +79,7 @@ databases:
     atp: "path_atp"
 
 reference_sequence_counts:
-    JIASUAN-CH4: 18
+    Formate: 18
     CO2-CH4: 15
     Glycine betaine methanogenesis: 3
     Methylthiopropionate methanogenesis: 4

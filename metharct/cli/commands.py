@@ -56,7 +56,7 @@ def comprehensive_command(input_path: str,
     print(f"Output prefix: {output_prefix}")
     print(f"Skip CheckM2: {skip_checkm2}")
     print(f"Skip SuSha: {skip_susha}")
-    print(f"Skip Huainanzi: {skip_huainanzi}")
+    print(f"Skip MLHuaiNanzi: {skip_huainanzi}")
     print(f"Skip pH: {skip_ph}")
     print(f"Skip Antibiotic: {skip_antibiotic}")
     print("=" * 60 + "\n")
@@ -120,7 +120,7 @@ def comprehensive_command(input_path: str,
             env_adaptation = integrated.get('environmental_adaptation', {})
             temp_data = env_adaptation.get('temperature', {})
             if temp_data and temp_data.get('T_opt') is not None:
-                print("\nTemperature Prediction (Huainanzi):")
+                print("\nTemperature Prediction (MLHuaiNanzi):")
                 print(f"  T_min: {temp_data.get('T_min', 'N/A')} °C")
                 print(f"  T_opt: {temp_data.get('T_opt', 'N/A')} °C")
                 print(f"  T_max: {temp_data.get('T_max', 'N/A')} °C")
@@ -128,7 +128,7 @@ def comprehensive_command(input_path: str,
             elif 'huainanzi' in results.get('results', {}):
                 hz_result = results['results']['huainanzi']
                 if hz_result.get('status') == 'failed':
-                    print(f"\nTemperature Prediction (Huainanzi): FAILED ({hz_result.get('error', 'Unknown error')})")
+                    print(f"\nTemperature Prediction (MLHuaiNanzi): FAILED ({hz_result.get('error', 'Unknown error')})")
 
             # Print pH prediction summary if available
             env_adaptation = integrated.get('environmental_adaptation', {})
@@ -278,7 +278,7 @@ def diamond_command(input_path: str,
             pathway_results = results.get('pathway_results', {})
             
             # Count pathways by type
-            methane_count = sum(1 for db in pathway_results.keys() if db in ['CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4', 'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4', 'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4', 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'])
+            methane_count = sum(1 for db in pathway_results.keys() if db in ['CO2-CH4', 'Methylamine', 'Methanol', 'Methanethiol', 'Acetate', 'Alkane', 'CO-CH4', 'Formate', 'Methoxy', 'Fatty_acid', 'Dimethylamine', 'Trimethylamine', 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'])
             sulfur_count = sum(1 for db in pathway_results.keys() if db in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
             nitrogen_count = sum(1 for db in pathway_results.keys() if db in ['ANR', 'DEN', 'DNR', 'NIT'])
             
@@ -604,21 +604,21 @@ def susha_command(input_path: str,
         raise
 
 
-def huainanzi_command(input_path: str,
+def mlhuainanzi_command(input_path: str,
                      output_prefix: str,
                      config: Config):
     """
-    Run Huainanzi growth temperature range prediction
+    Run MLHuaiNanzi growth temperature range prediction
 
     Args:
         input_path: Path to input FASTA file
         output_prefix: Output file prefix
         config: Configuration object
     """
-    logger = get_logger("huainanzi_command")
+    logger = get_logger("mlhuainanzi_command")
 
     print("\n" + "=" * 60)
-    print("MethArCT Huainanzi Temperature Prediction")
+    print("MethArCT MLHuaiNanzi Temperature Prediction")
     print("=" * 60)
     print(f"Input file: {input_path}")
     print(f"Output prefix: {output_prefix}")
@@ -634,13 +634,13 @@ def huainanzi_command(input_path: str,
 
         if not analyzer.tool_available:
             raise RuntimeError(
-                "Huainanzi module is not available. "
+                "MLHuaiNanzi module is not available. "
                 "Please ensure 'scikit-learn' and 'numpy' are installed."
             )
 
         # Start analysis
         start_time = time.time()
-        print("Starting Huainanzi temperature prediction...")
+        print("Starting MLHuaiNanzi temperature prediction...")
 
         results = analyzer.predict_temperature(
             input_file=input_path,
@@ -652,7 +652,7 @@ def huainanzi_command(input_path: str,
 
         # Print summary
         print("\n" + "=" * 60)
-        print("Huainanzi Prediction Summary")
+        print("MLHuaiNanzi Prediction Summary")
         print("=" * 60)
 
         if results.get('status') == 'success':
@@ -878,17 +878,17 @@ _SALINITY_RANGE_MAP = {
 _SUBSTRATE_CN_MAP = {
     # Methane metabolism
     'CO2-CH4': 'CO2/H2',
-    'JIAAN-CH4': 'Methylamine',
-    'JIACHUN-CH4': 'Methanol',
-    'JIALIUCHUN-CH4': 'Methanethiol',
-    'YISUAN-CH4': 'Acetate',
-    'C16-CH4': 'Long-chain fatty acids',
+    'Methylamine': 'Methylamine',
+    'Methanol': 'Methanol',
+    'Methanethiol': 'Methanethiol',
+    'Acetate': 'Acetate',
+    'Alkane': 'Long-chain fatty acids',
     'CO-CH4': 'CO',
-    'JIASUAN-CH4': 'Formate',
-    'JIAYANGJI-CH4': 'Methoxy compounds',
-    'ZHIFANGSUAN-CH4': 'Fatty acids',
-    '2JIAAN-CH4': 'Dimethylamine',
-    '3JIAAN-CH4': 'Trimethylamine',
+    'Formate': 'Formate',
+    'Methoxy': 'Methoxy compounds',
+    'Fatty_acid': 'Fatty acids',
+    'Dimethylamine': 'Dimethylamine',
+    'Trimethylamine': 'Trimethylamine',
     'Glycine betaine methanogenesis': 'Glycine betaine',
     'Methylthiopropionate methanogenesis': 'Methylthiopropionate',
     'Tetramethylammonium methanogenesis': 'Tetramethylammonium',
@@ -1154,12 +1154,12 @@ def batch_command(input_dir: str,
         huainanzi_analyzer = HuainanziAnalyzer(config)
         if huainanzi_analyzer.tool_available:
             analyzers['huainanzi'] = huainanzi_analyzer
-            print("  [OK] Huainanzi (temperature)")
+            print("  [OK] MLHuaiNanzi (temperature)")
         else:
-            print("  [SKIP] Huainanzi not available")
+            print("  [SKIP] MLHuaiNanzi not available")
     except Exception as e:
         logger.warning(f"Huainanzi unavailable: {e}")
-        print(f"  [SKIP] Huainanzi: {e}")
+        print(f"  [SKIP] MLHuaiNanzi: {e}")
 
     try:
         analyzers['diamond'] = DiamondAnalyzer(config)

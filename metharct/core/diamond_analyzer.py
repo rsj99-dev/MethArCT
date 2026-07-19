@@ -25,9 +25,9 @@ from .pathway_strategies import evaluate_pathway
 # Module-level constants: database category classifications
 # ============================================================
 METHANE_DATABASES = frozenset([
-    'CO2-CH4', 'JIAAN-CH4', 'JIACHUN-CH4', 'JIALIUCHUN-CH4',
-    'YISUAN-CH4', 'C16-CH4', 'CO-CH4', 'JIASUAN-CH4',
-    'JIAYANGJI-CH4', 'ZHIFANGSUAN-CH4', '2JIAAN-CH4', '3JIAAN-CH4',
+    'CO2-CH4', 'Methylamine', 'Methanol', 'Methanethiol',
+    'Acetate', 'Alkane', 'CO-CH4', 'Formate',
+    'Methoxy', 'Fatty_acid', 'Dimethylamine', 'Trimethylamine',
     'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis',
     'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis',
 ])
@@ -64,11 +64,11 @@ class DiamondAnalyzer:
         # Fallback E-value when average length cannot be determined:
         self._FALLBACK_HIGH_E_VALUE_THRESHOLD = 1e-100
         self.LOW_E_VALUE_THRESHOLD = 1e-5
-        self.LOW_BITSCORE_THRESHOLD = 40
+        self.LOW_BITSCORE_THRESHOLD = 80
         self.HIGH_QUALITY_THRESHOLD = 60
         
         # Cultivability assessment thresholds
-        self.CULTIVABILITY_E_VALUE_THRESHOLD = 1e-3
+        self.CULTIVABILITY_E_VALUE_THRESHOLD = 1e-5
         self.CULTIVABILITY_BITSCORE_THRESHOLD = 50
         
         # Database paths
@@ -331,6 +331,33 @@ class DiamondAnalyzer:
         
         return analysis_results
     
+    @staticmethod
+    def _add_header_to_tsv(tsv_path: str) -> None:
+        """
+        Prepend a header line to a Diamond outfmt 6 TSV file.
+        
+        The 12 standard BLAST tabular columns are:
+        qseqid, sseqid, pident, length, mismatch, gapopen,
+        qstart, qend, sstart, send, evalue, bitscore
+        
+        Args:
+            tsv_path: Path to the TSV file to modify in-place.
+        """
+        header_line = (
+            "qseqid\tsseqid\tpident\tlength\tmismatch\tgapopen\t"
+            "qstart\tqend\tsstart\tsend\tevalue\tbitscore\n"
+        )
+        try:
+            with open(tsv_path, 'r') as f:
+                original_content = f.read()
+            # Only add header if not already present
+            if not original_content.startswith('qseqid\t'):
+                with open(tsv_path, 'w') as f:
+                    f.write(header_line)
+                    f.write(original_content)
+        except Exception:
+            pass  # Silently skip if file cannot be modified
+
     def _run_diamond_search(self, 
                            input_file: Path, 
                            db_name: str, 
@@ -391,10 +418,13 @@ class DiamondAnalyzer:
             if result.returncode == 0:
                 # Parse results
                 if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                    # Add header line to the raw TSV file for readability
+                    self._add_header_to_tsv(output_file)
+                    
                     df = pd.read_csv(
                         output_file,
                         sep='\t',
-                        header=None,
+                        header=0,
                         names=['qseqid', 'sseqid', 'pident', 'length',
                                'mismatch', 'gapopen', 'qstart', 'qend',
                                'sstart', 'send', 'evalue', 'bitscore']

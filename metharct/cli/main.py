@@ -20,7 +20,7 @@ try:
         checkm2_command,
         comprehensive_command,
         susha_command,
-        huainanzi_command,
+        mlhuainanzi_command,
         ph_command,
         antibiotic_command,
         batch_command,
@@ -47,7 +47,7 @@ Examples:
   metharct comprehensive input.fasta -o results
   
   # Temperature prediction
-  metharct huainanzi input.fasta -o temp_results
+  metharct mlhuainanzi input.fasta -o temp_results
   
   # Individual analyses
   metharct diamond input.fasta -o diamond_results
@@ -96,7 +96,7 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     # Comprehensive analysis command
     comprehensive_parser = subparsers.add_parser(
         'comprehensive',
-        help='Run comprehensive analysis (Diamond + Huainanzi + SuSha + pH + CheckM2)',
+        help='Run comprehensive analysis (Diamond + MLHuaiNanzi + SuSha + pH + CheckM2)',
         description='Perform comprehensive metabolic pathway prediction, temperature analysis, salinity prediction, pH prediction, and genome quality assessment'
     )
     _add_comprehensive_args(comprehensive_parser)
@@ -133,13 +133,13 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
     )
     _add_susha_args(susha_parser)
 
-    # Huainanzi temperature prediction command
-    huainanzi_parser = subparsers.add_parser(
-        'huainanzi',
-        help='Run Huainanzi growth temperature range prediction',
-        description='Predict microbial growth temperature range (T_min, T_opt, T_max) using Huainanzi AAC+DC model'
+    # MLHuaiNanzi temperature prediction command
+    mlhuainanzi_parser = subparsers.add_parser(
+        'mlhuainanzi',
+        help='Run MLHuaiNanzi growth temperature range prediction',
+        description='Predict microbial growth temperature range (T_min, T_opt, T_max) using the MLHuaiNanzi AAC+DC PLS model'
     )
-    _add_huainanzi_args(huainanzi_parser)
+    _add_mlhuainanzi_args(mlhuainanzi_parser)
 
     # pH preference prediction command
     ph_parser = subparsers.add_parser(
@@ -195,9 +195,9 @@ def _add_comprehensive_args(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        '--skip-huainanzi',
+        '--skip-mlhuainanzi',
         action='store_true',
-        help='Skip Huainanzi temperature prediction'
+        help='Skip MLHuaiNanzi temperature prediction'
     )
 
     parser.add_argument(
@@ -329,8 +329,8 @@ def _add_susha_args(parser: argparse.ArgumentParser):
         help='Output file prefix'
     )
 
-def _add_huainanzi_args(parser: argparse.ArgumentParser):
-    """Add arguments for Huainanzi temperature prediction command"""
+def _add_mlhuainanzi_args(parser: argparse.ArgumentParser):
+    """Add arguments for MLHuaiNanzi temperature prediction command"""
     parser.add_argument(
         'input',
         type=str,
@@ -612,7 +612,7 @@ def main():
                     config=config,
                     skip_checkm2=args.skip_checkm2,
                     skip_susha=getattr(args, 'skip_susha', False),
-                    skip_huainanzi=getattr(args, 'skip_huainanzi', False),
+                    skip_huainanzi=getattr(args, 'skip_mlhuainanzi', False),
                     skip_ph=getattr(args, 'skip_ph', False),
                     skip_antibiotic=getattr(args, 'skip_antibiotic', False)
                 )
@@ -667,8 +667,8 @@ def main():
                     config=config
                 )
 
-            elif args.command == 'huainanzi':
-                huainanzi_command(
+            elif args.command == 'mlhuainanzi':
+                mlhuainanzi_command(
                     input_path=str(input_path),
                     output_prefix=output_prefix,
                     config=config

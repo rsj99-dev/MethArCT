@@ -83,6 +83,8 @@ class CultivationAnalyzer:
         '硫辛酸生物合成-辛酰辅酶A': 'Lipoic acid biosynthesis-octanoyl-CoA',
         '硫辛酸生物合成-真核': 'Lipoic acid biosynthesis-eukaryotic',
         '硫辛酸生物合成-植物与原核': 'Lipoic acid biosynthesis-plant and prokaryotic',
+        '硫辛酸生物合成途径-古菌': 'Lipoic acid biosynthesis-archaeal',
+        '硫辛酸回收途径-古菌': 'Lipoic acid salvage-archaeal',
         '钼辅因子生物合成-GTP': 'Molybdenum cofactor biosynthesis-GTP',
         '生物素生物合成-吡美酰ACP或辅酶A': 'Biotin biosynthesis-pimeloyl-ACP or CoA',
         '生物素生物合成-BioI途径': 'Biotin biosynthesis-BioI pathway',
@@ -205,6 +207,34 @@ class CultivationAnalyzer:
         },
     }
     
+    # Step-based pathway completeness rules
+    # Each pathway maps to a list of steps; each step defines which genes satisfy it.
+    # Completeness = (number of satisfied steps) / (total steps)
+    STEP_BASED_PATHWAYS = {
+        'Lipoic acid biosynthesis-archaeal': {
+            'steps': [
+                {
+                    'name': 'Step 1 (LipM or LipB)',
+                    'mode': 'any',  # at least one gene must be found
+                    'genes': ['LipM(1)', 'LipB(1)'],
+                },
+                {
+                    'name': 'Step 2 (LipA or LipS1+LipS2)',
+                    'mode': 'custom',  # custom logic
+                    'check': lambda found: (
+                        'LipA(2)' in found or
+                        ('LipS1(2)' in found and 'LipS2(2)' in found)
+                    ),
+                },
+                {
+                    'name': 'Step 3 (LplA)',
+                    'mode': 'any',
+                    'genes': ['LplA(3)'],
+                },
+            ],
+        },
+    }
+
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize cultivation analyzer
@@ -263,12 +293,13 @@ class CultivationAnalyzer:
             print(f"Warning: {pathway_type} FASTA directory does not exist: {directory}")
             return pathways
             
-        # Find all .fasta files
-        fasta_files = glob.glob(os.path.join(directory, "*.fasta"))
+        # Find all .fasta and .FASTA files
+        fasta_files = glob.glob(os.path.join(directory, "*.fasta")) + glob.glob(os.path.join(directory, "*.FASTA"))
         
         for file_path in fasta_files:
             file_name = os.path.basename(file_path)
-            pathway_name = file_name.replace('.fasta', '')
+            # Strip extension (case-insensitive)
+            pathway_name = os.path.splitext(file_name)[0]
             # Translate Chinese pathway names to English
             english_name = self.PATHWAY_NAME_MAP.get(pathway_name, pathway_name)
             pathways[english_name] = file_path
@@ -511,11 +542,73 @@ class CultivationAnalyzer:
             
             # Calculate completeness
             if pathway_result['total_genes'] > 0:
-                pathway_result['completeness'] = pathway_result['found_genes'] / pathway_result['total_genes']
+                # Check if this pathway uses step-based completeness logic
+                step_rules = self.STEP_BASED_PATHWAYS.get(pathway_name)
+                if step_rules:
+                    steps_completed, step_details = self._evaluate_step_based_completeness(
+                        pathway_name, step_rules, found_genes
+                    )
+                    total_steps = len(step_rules['steps'])
+                    pathway_result['completeness'] = steps_completed / total_steps
+                    pathway_result['step_details'] = step_details
+                    pathway_result['steps_completed'] = steps_completed
+                    pathway_result['total_steps'] = total_steps
+                else:
+                    pathway_result['completeness'] = pathway_result['found_genes'] / pathway_result['total_genes']
             
             results[pathway_name] = pathway_result
         
         return results
+    
+    def _evaluate_step_based_completeness(self, pathway_name: str, step_rules: Dict, found_genes: set) -> Tuple[int, List[Dict]]:
+        """
+        Evaluate pathway completeness based on step-based rules.
+        
+        Args:
+            pathway_name: Pathway name
+            step_rules: Step rules definition from STEP_BASED_PATHWAYS
+            found_genes: Set of gene names that were found
+            
+        Returns:
+            (steps_completed, step_details_list)
+        """
+        steps_completed = 0
+        step_details = []
+        
+        for step in step_rules['steps']:
+            step_name = step['name']
+            mode = step['mode']
+            satisfied = False
+            
+            if mode == 'any':
+                # At least one of the listed genes must be found
+                satisfied = any(g in found_genes for g in step['genes'])
+                matched = [g for g in step['genes'] if g in found_genes]
+                missing = [g for g in step['genes'] if g not in found_genes]
+            elif mode == 'custom':
+                # Custom lambda check
+                satisfied = step['check'](found_genes)
+                matched = []
+                missing = []
+            else:
+                satisfied = False
+                matched = []
+                missing = step.get('genes', [])
+            
+            if satisfied:
+                steps_completed += 1
+            
+            step_details.append({
+                'step': step_name,
+                'satisfied': satisfied,
+                'matched_genes': matched,
+                'missing_genes': missing,
+            })
+            
+            status_str = 'PASS' if satisfied else 'FAIL'
+            print(f"  [{status_str}] {pathway_name} - {step_name}")
+        
+        return steps_completed, step_details
     
     def generate_report(self, results: Dict[str, Dict[str, Any]]) -> str:
         """

@@ -28,21 +28,21 @@ databases:
   base_dir: "data/databases"
   methane_pathways:
     CO2-CH4: "methane/processed_CO2-CH4.fasta"
-    JIAAN-CH4: "methane/processed_JIAAN-CH4.fasta"
-    JIACHUN-CH4: "methane/processed_JIACHUN-CH4.fasta"
-    JIALIUCHUN-CH4: "methane/processed_JIALIUCHUN-CH4.fasta"
-    YISUAN-CH4: "methane/processed_YISUAN-CH4.fasta"
-    C16-CH4: "methane/processed_C16-CH4.fasta"
+    Methylamine: "methane/Methylamine.fasta"
+    Methanol: "methane/Methanol.fasta"
+    Methanethiol: "methane/Methanethiol.fasta"
+    Acetate: "methane/Acetate.fasta"
+    Alkane: "methane/Alkane.fasta"
     CO-CH4: "methane/processed_CO-CH4.fasta"
-    JIASUAN-CH4: "methane/processed_JIASUAN-CH4.fasta"
-    JIAYANGJI-CH4: "methane/processed_JIAYANGJI-CH4.fasta"
-    ZHIFANGSUAN-CH4: "methane/processed_ZHIFANGSUAN-CH4.fasta"
-    2JIAAN-CH4: "methane/processed_2JIAAN-CH4.fasta"
-    3JIAAN-CH4: "methane/processed_3JIAAN-CH4.fasta"
-    Glycine betaine methanogenesis: "methane/processed_甘氨酸甜菜碱产甲烷.fasta"
-    Methylthiopropionate methanogenesis: "methane/processed_硫代丙酸甲酯产甲烷.fasta"
-    Tetramethylammonium methanogenesis: "methane/四甲基铵产甲烷.fasta"
-    Methanol dismutation methanogenesis: "methane/processed_甲醇歧化产甲烷.fasta"
+    Formate: "methane/Formate.fasta"
+    Methoxy: "methane/Methoxy.fasta"
+    Fatty_acid: "methane/Fatty_acid.fasta"
+    Dimethylamine: "methane/Dimethylamine.fasta"
+    Trimethylamine: "methane/Trimethylamine.fasta"
+    Glycine betaine methanogenesis: "methane/processed_Glycine_betaine_methanogenesis.fasta"
+    Methylthiopropionate methanogenesis: "methane/processed_Methylthiopropionate_methanogenesis.fasta"
+    Tetramethylammonium methanogenesis: "methane/Tetramethylammonium_methanogenesis.fasta"
+    Methanol dismutation methanogenesis: "methane/processed_Methanol_dismutation_methanogenesis.fasta"
   sulfur_pathways:
     ASR: "sulfur/Assimilatory sulfate reduction.fasta"
     SO: "sulfur/Sulfide oxidation.fasta"
@@ -68,17 +68,17 @@ databases:
 
 pathway_names:
   CO2-CH4: "CO2 reduction methanogenesis pathway"
-  JIAAN-CH4: "Methylamine methanogenesis pathway"
-  JIACHUN-CH4: "Methanol methanogenesis pathway"
-  JIALIUCHUN-CH4: "Methanethiol methanogenesis pathway"
-  YISUAN-CH4: "Acetate methanogenesis pathway"
-  C16-CH4: "C16 methanogenesis pathway"
+  Methylamine: "Methylamine methanogenesis pathway"
+  Methanol: "Methanol methanogenesis pathway"
+  Methanethiol: "Methanethiol methanogenesis pathway"
+  Acetate: "Acetate methanogenesis pathway"
+  Alkane: "Alkane methanogenesis pathway"
   CO-CH4: "CO methanogenesis pathway"
-  JIASUAN-CH4: "Formate methanogenesis pathway"
-  JIAYANGJI-CH4: "Methoxy methanogenesis pathway"
-  ZHIFANGSUAN-CH4: "Fatty acid methanogenesis pathway"
-  2JIAAN-CH4: "Dimethylamine methanogenesis pathway"
-  3JIAAN-CH4: "Trimethylamine methanogenesis pathway"
+  Formate: "Formate methanogenesis pathway"
+  Methoxy: "Methoxy methanogenesis pathway"
+  Fatty_acid: "Fatty acid methanogenesis pathway"
+  Dimethylamine: "Dimethylamine methanogenesis pathway"
+  Trimethylamine: "Trimethylamine methanogenesis pathway"
   Glycine betaine methanogenesis: "Glycine betaine methanogenesis pathway"
   Methylthiopropionate methanogenesis: "Methylthiopropionate methanogenesis pathway"
   Tetramethylammonium methanogenesis: "Tetramethylammonium methanogenesis pathway"
@@ -97,25 +97,24 @@ pathway_names:
   CNIT: "Complete nitrification pathway"
   NFX1: "Nitrogen fixation1 pathway"
   NFX2: "Nitrogen fixation2 pathway"
-  CULTIVATION: "Cultivation assessment"
 
 reference_sequence_counts:
   CO2-CH4: 15
-  JIAAN-CH4: 10
-  JIACHUN-CH4: 7
-  JIALIUCHUN-CH4: 6
-  YISUAN-CH4: 14
+  Methylamine: 10
+  Methanol: 7
+  Methanethiol: 6
+  Acetate: 14
   Glycine betaine methanogenesis: 3
   Methylthiopropionate methanogenesis: 4
   Tetramethylammonium methanogenesis: 3
   Methanol dismutation methanogenesis: 15
-  C16-CH4: 15
+  Alkane: 15
   CO-CH4: 11
-  JIASUAN-CH4: 18
-  JIAYANGJI-CH4: 9
-  ZHIFANGSUAN-CH4: 12
-  2JIAAN-CH4: 10
-  3JIAAN-CH4: 10
+  Formate: 18
+  Methoxy: 9
+  Fatty_acid: 12
+  Dimethylamine: 10
+  Trimethylamine: 10
   ASR: 9
   SO: 2
   SOX: 7
@@ -130,7 +129,7 @@ reference_sequence_counts:
   CNIT: 6
   NFX1: 4
   NFX2: 4
-  CULTIVATION: 14192
+
 
 cultivation:
   diamond_path: "diamond"

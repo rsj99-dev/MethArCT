@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Huainanzi temperature prediction analyzer for MethArCT
+MLHuaiNanzi temperature prediction analyzer for MethArCT
 
 Predicts microbial growth temperature range (T_min, T_opt, T_max) from
 genome-wide amino acid composition (AAC + dipeptide composition) features
-using Bayesian Ridge / Ridge regression models.
+using the embedded MLHuaiNanzi PLS regression models.
 """
 
 import os
@@ -18,7 +18,7 @@ from ..utils.file_utils import FileUtils
 
 
 class HuainanziAnalyzer:
-    """Huainanzi growth temperature range predictor"""
+    """MLHuaiNanzi growth temperature range predictor"""
 
     def __init__(self, config: Optional[Config] = None):
         self.config = config or Config()
@@ -28,27 +28,27 @@ class HuainanziAnalyzer:
         self.results_dir = self.config.get('output.base_dir', 'results')
         FileUtils.ensure_dir(self.results_dir)
 
-        self._huainanzi_predict = None  # lazy-loaded module reference
-        self.tool_available = self._check_huainanzi_availability()
+        self._predict_mod = None  # lazy-loaded module reference
+        self.tool_available = self._check_availability()
 
     # ------------------------------------------------------------------
     # Availability check
     # ------------------------------------------------------------------
-    def _check_huainanzi_availability(self) -> bool:
-        """Check whether the embedded Huainanzi Python module can be imported."""
+    def _check_availability(self) -> bool:
+        """Check whether the embedded MLHuaiNanzi Python module can be imported."""
         try:
-            from .huainanzi.predict import predict_from_fasta  # noqa: F401
-            self.logger.info("Huainanzi module available (embedded)")
+            from .mlhuainanzi.predict import predict_temperatures  # noqa: F401
+            self.logger.info("MLHuaiNanzi module available (embedded)")
             return True
         except ImportError as e:
-            self.logger.warning(f"Huainanzi module not available: {e}")
+            self.logger.warning(f"MLHuaiNanzi module not available: {e}")
             return False
 
     def _ensure_loaded(self):
-        """Lazy-load Huainanzi prediction functions."""
-        if self._huainanzi_predict is None:
-            from .huainanzi import predict as _mod
-            self._huainanzi_predict = _mod
+        """Lazy-load MLHuaiNanzi prediction functions."""
+        if self._predict_mod is None:
+            from .mlhuainanzi import predict as _mod
+            self._predict_mod = _mod
 
     # ------------------------------------------------------------------
     # Public API
@@ -81,7 +81,7 @@ class HuainanziAnalyzer:
         if output_prefix is None:
             output_prefix = input_file.stem
 
-        self.logger.info(f"Starting Huainanzi temperature prediction for {input_file.name}")
+        self.logger.info(f"Starting MLHuaiNanzi temperature prediction for {input_file.name}")
         self._ensure_loaded()
 
         return self._run_prediction(input_file, output_prefix)
@@ -90,11 +90,11 @@ class HuainanziAnalyzer:
     # Internal prediction wrapper
     # ------------------------------------------------------------------
     def _run_prediction(self, input_file: Path, output_prefix: str) -> Dict:
-        """Execute Huainanzi prediction and return structured results."""
+        """Execute MLHuaiNanzi prediction and return structured results."""
         try:
-            mod = self._huainanzi_predict
+            mod = self._predict_mod
 
-            results = mod.predict_from_fasta(str(input_file))
+            results = mod.predict_temperatures(str(input_file))
             t_min = results['T_min']
             t_opt = results['T_opt']
             t_max = results['T_max']
@@ -103,7 +103,7 @@ class HuainanziAnalyzer:
             temperature_category = self._categorize_temperature(t_opt)
 
             self.logger.info(
-                f"Huainanzi prediction: T_min={t_min:.1f}, T_opt={t_opt:.1f}, "
+                f"MLHuaiNanzi prediction: T_min={t_min:.1f}, T_opt={t_opt:.1f}, "
                 f"T_max={t_max:.1f} °C ({temperature_category})"
             )
 
@@ -118,7 +118,7 @@ class HuainanziAnalyzer:
                 'status': 'success',
                 'input_file': str(input_file),
                 'analysis_timestamp': pd.Timestamp.now().isoformat(),
-                'tool': 'Huainanzi',
+                'tool': 'MLHuaiNanzi',
                 'prediction': {
                     'T_min': round(t_min, 2),
                     'T_opt': round(t_opt, 2),
@@ -137,7 +137,7 @@ class HuainanziAnalyzer:
             return result
 
         except Exception as e:
-            self.logger.error(f"Huainanzi prediction failed: {e}")
+            self.logger.error(f"MLHuaiNanzi prediction failed: {e}")
             return {
                 'status': 'failed',
                 'error': str(e),
