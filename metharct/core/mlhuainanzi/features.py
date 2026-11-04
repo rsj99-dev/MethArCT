@@ -4,6 +4,13 @@ Amino acid composition (AAC) and dipeptide composition (DPC) feature extraction.
 Extracts a 420-dimensional feature vector from a protein sequence:
   - 20 AAC features: normalized frequency of each standard amino acid
   - 400 DPC features: normalized frequency of each dipeptide (AA, AC, ..., YY)
+
+Note: ``read_fasta`` concatenates all proteins in a FASTA file before DPC
+counting, so dipeptides spanning two adjacent proteins (and residues joined
+across filtered non-standard amino acids) are counted. The bundled models were
+trained with this exact behaviour, so it must not be changed on the inference
+side alone - doing so requires retraining the model on per-protein DPC
+features.
 """
 
 import re

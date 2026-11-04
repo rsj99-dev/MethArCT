@@ -287,6 +287,34 @@ class FileUtils:
             return 0
     
     @staticmethod
+    def to_wsl_path(path: Union[str, Path]) -> str:
+        """
+        Convert a Windows path to the path format used inside WSL.
+
+        ``C:\\data\\x.faa`` becomes ``/mnt/c/data/x.faa``. Paths that are
+        already POSIX-style are returned unchanged.
+
+        Args:
+            path: Windows or POSIX path
+
+        Returns:
+            Path usable by a program running inside WSL
+        """
+        if path is None:
+            return path
+
+        path_str = str(path)
+        if not path_str:
+            return path_str
+
+        # Only Windows drive letters need conversion; POSIX paths are already
+        # valid inside WSL.
+        drive, rest = os.path.splitdrive(os.path.abspath(path_str))
+        if drive and len(drive) >= 2 and drive[1] == ':':
+            return '/mnt/' + drive[0].lower() + rest.replace('\\', '/')
+        return path_str.replace('\\', '/')
+
+    @staticmethod
     def format_file_size(size_bytes: int) -> str:
         """
         Format file size in human readable format

@@ -5,7 +5,13 @@ Antibiotic resistance prediction module for MethArCT.
 
 Compares a query protein FASTA file against methanogen reference databases
 in data/databases/kangshengsu/ and recommends appropriate antibiotics
-based on AAI (Average Amino Acid Identity) thresholds.
+based on identity thresholds.
+
+Note: the reported metric is ``mean_best_hit_identity`` - the mean percent
+identity of the best DIAMOND hit per query protein. It is not a strict
+reciprocal-best-hit AAI and does not apply coverage filters; ``num_hits``
+and ``num_queries`` are reported alongside so the value can be interpreted
+correctly.
 
 Rules:
     - Bacitracin: AAI > 50% with Methanobacterium.faa or Methanopyrus.faa
@@ -15,6 +21,7 @@ Rules:
 """
 
 import os
+import shlex
 import sys
 import tempfile
 import shutil
@@ -41,7 +48,7 @@ class AntibioticAnalyzer:
     # Antibiotic selection rules:
     ANTIBIOTIC_RULES = [
         {
-            'name': 'Tunicamycin',
+            'name': 'Bacitracin',
             'conditions': [
                 ('Methanobacterium.faa', 50.0, '>'),
                 ('Methanopyrus.faa', 50.0, '>'),
@@ -64,7 +71,7 @@ class AntibioticAnalyzer:
             'logic': 'any',
         },
         {
-            'name': 'Bacitracin',
+            'name': 'Tunicamycin',
             'conditions': [
                 ('Methanobacterium.faa', 50.0, '<'),
                 ('Methanopyrus.faa', 50.0, '<'),
@@ -80,8 +87,8 @@ class AntibioticAnalyzer:
         self,
         config: Optional[Config] = None,
         db_dir: Optional[str] = None,
-        cpus: int = 1,
-        evalue: float = 1e-5,
+        cpus: Optional[int] = None,
+        evalue: Optional[float] = None,
         tmp_dir: Optional[str] = None,
     ):
         """Initialize AntibioticAnalyzer.
@@ -94,10 +101,11 @@ class AntibioticAnalyzer:
         db_dir : str or None
             Path to the directory containing reference .faa files.
             If None, auto-detects from config or project structure.
-        cpus : int
-            Number of CPUs for DIAMOND.
-        evalue : float
-            E-value threshold for DIAMOND search.
+        cpus : int or None
+            Number of CPUs for DIAMOND. Defaults to ``tools.diamond.threads``.
+        evalue : float or None
+            E-value threshold for DIAMOND search. Defaults to
+            ``tools.diamond.evalue``.
         tmp_dir : str or None
             Directory for temporary files.
         """
@@ -116,9 +124,27 @@ class AntibioticAnalyzer:
         else:
             self.db_dir = db_dir
 
-        self.cpus = cpus
-        self.evalue = evalue
+        # DIAMOND settings are shared with the core analyzer: honour the
+        # configured threads, E-value, executable path and WSL switch.
+        diamond_cfg = self.config.get('tools.diamond', {}) or {}
+        self.cpus = cpus if cpus is not None else diamond_cfg.get('threads', 4)
+        self.evalue = evalue if evalue is not None else diamond_cfg.get('evalue', 1e-5)
+        self.use_wsl = diamond_cfg.get('use_wsl', False)
+
+        if self.use_wsl:
+            wsl_command = diamond_cfg.get('wsl_path', 'wsl diamond')
+            self.diamond_cmd = shlex.split(wsl_command) or ['wsl', 'diamond']
+        else:
+            self.diamond_cmd = [diamond_cfg.get('path', 'diamond')]
+
         self.tmp_dir = tmp_dir
+
+    def _host_path(self, path) -> str:
+        """Convert a local path to the format expected by DIAMOND."""
+        if self.use_wsl:
+            from ..utils.file_utils import FileUtils
+            return FileUtils.to_wsl_path(path)
+        return str(path)
 
     def _validate_inputs(self, query_faa: str):
         """Validate that query file and database directory exist.
@@ -169,10 +195,10 @@ class AntibioticAnalyzer:
         db_name = os.path.splitext(os.path.basename(ref_faa))[0]
         db_path = os.path.join(output_dir, db_name)
 
-        cmd = [
-            'diamond', 'makedb',
-            '--in', ref_faa,
-            '-d', db_path,
+        cmd = self.diamond_cmd + [
+            'makedb',
+            '--in', self._host_path(ref_faa),
+            '-d', self._host_path(db_path),
             '--threads', str(self.cpus),
         ]
 
@@ -214,11 +240,11 @@ class AntibioticAnalyzer:
         str
             Path to the output file.
         """
-        cmd = [
-            'diamond', 'blastp',
-            '-q', query_faa,
-            '-d', db_path,
-            '-o', output_file,
+        cmd = self.diamond_cmd + [
+            'blastp',
+            '-q', self._host_path(query_faa),
+            '-d', self._host_path(db_path),
+            '-o', self._host_path(output_file),
             '-e', str(self.evalue),
             '--max-target-seqs', '500',
             '--threads', str(self.cpus),
@@ -288,10 +314,13 @@ class AntibioticAnalyzer:
     def _calculate_aai(
         self, query_faa: str, ref_faa: str, work_dir: str
     ) -> Tuple[float, int, int]:
-        """Calculate AAI between query protein file and a reference file.
+        """Calculate a mean best-hit identity between query and reference.
 
-        AAI is the mean percent identity of the best DIAMOND hit
-        (by bitscore) for each query protein.
+        The returned value is the mean percent identity of the single best
+        DIAMOND hit (by bitscore) for each query protein that has a hit.  It is
+        a one-directional, coverage-unfiltered metric and therefore reported as
+        ``mean_best_hit_identity``; it is not a strict reciprocal-best-hit AAI.
+        Unmatched queries do not enter the denominator.
 
         Parameters
         ----------
@@ -432,6 +461,7 @@ class AntibioticAnalyzer:
                 )
                 aai_results[ref_file] = aai
                 aai_details[ref_file] = {
+                    'mean_best_hit_identity': aai,
                     'aai': aai,
                     'num_hits': num_hits,
                     'num_queries': num_queries,
@@ -465,7 +495,8 @@ class AntibioticAnalyzer:
                     recommended.append(rule['name'])
 
             output_file = os.path.join(
-                output_dir, 'antibiotic_selection_results.tsv'
+                output_dir,
+                f"{os.path.basename(output_prefix)}_antibiotic_selection.tsv"
             )
             self._write_results(
                 output_file, aai_results, all_rule_results, recommended
@@ -475,6 +506,8 @@ class AntibioticAnalyzer:
             return {
                 'status': 'success',
                 'aai_results': aai_results,
+                'mean_best_hit_identity_results': dict(aai_results),
+                'metric': 'mean_best_hit_identity',
                 'aai_details': aai_details,
                 'recommended_antibiotics': recommended,
                 'all_rules': all_rule_results,
@@ -518,7 +551,7 @@ class AntibioticAnalyzer:
             List of recommended antibiotics.
         """
         with open(output_file, 'w', encoding='utf-8') as fout:
-            fout.write("Reference\tAAI (%)\n")
+            fout.write("Reference\tMean best-hit identity (%)\n")
             for ref_file in sorted(aai_results.keys()):
                 fout.write(f"{ref_file}\t{aai_results[ref_file]:.2f}\n")
             fout.write("\n")

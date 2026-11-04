@@ -7,6 +7,7 @@ Implements the individual command functions for the MethArCT CLI.
 """
 
 import csv
+import os
 import sys
 import time
 from pathlib import Path
@@ -277,14 +278,22 @@ def diamond_command(input_path: str,
             summary = results['summary']
             pathway_results = results.get('pathway_results', {})
             
-            # Count pathways by type
-            methane_count = sum(1 for db in pathway_results.keys() if db in ['CO2-CH4', 'Methylamine', 'Methanol', 'Methanethiol', 'Acetate', 'Alkane', 'CO-CH4', 'Formate', 'Methoxy', 'Fatty_acid', 'Dimethylamine', 'Trimethylamine', 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'])
-            sulfur_count = sum(1 for db in pathway_results.keys() if db in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
-            nitrogen_count = sum(1 for db in pathway_results.keys() if db in ['ANR', 'DEN', 'DNR', 'NIT'])
+            # Count detected pathways by type (zero-hit rows are kept in the
+            # result table but must not be reported as detected)
+            detected = [
+                db for db, data in pathway_results.items()
+                if data.get('low_threshold_hits', 0) > 0
+                or data.get('cultivability_hits', 0) > 0
+            ]
+            methane_count = sum(1 for db in detected if db in ['CO2-CH4', 'Methylamine', 'Methanol', 'Methanethiol', 'Acetate', 'Alkane', 'CO-CH4', 'Formate', 'Methoxy', 'Fatty_acid', 'Dimethylamine', 'Trimethylamine', 'Glycine betaine methanogenesis', 'Methylthiopropionate methanogenesis', 'Tetramethylammonium methanogenesis', 'Methanol dismutation methanogenesis'])
+            sulfur_count = sum(1 for db in detected if db in ['ASR', 'SO', 'SOX', 'S4I', 'SR', 'DSR'])
+            nitrogen_count = sum(1 for db in detected if db in ['ANR', 'DEN', 'DNR', 'NIT'])
             
             cult_hits = pathway_results.get('CULTIVATION', {}).get('cultivability_hits', 0)
             
             print(f"Total pathways detected: {summary.get('pathways_detected', 0)}")
+            print(f"  Raw-hit pathways: {summary.get('raw_hit_pathways', 0)}")
+            print(f"  Complete pathways: {summary.get('complete_pathways', 0)}")
             print(f"Methane pathways: {methane_count}")
             print(f"Sulfur pathways: {sulfur_count}")
             print(f"Nitrogen pathways: {nitrogen_count}")
@@ -344,8 +353,13 @@ def cultivation_command(input_path: str,
         # Generate report
         report = analyzer.generate_report(results=results)
         
-        # Save report to file
-        report_file = f"{output_prefix}_cultivation_report.txt"
+        # Save report to file (respect the configured output directory)
+        prefix_dir = os.path.dirname(output_prefix)
+        report_dir = prefix_dir or config.get('output.base_dir', 'results')
+        FileUtils.ensure_dir(report_dir)
+        report_file = os.path.join(
+            report_dir, f"{os.path.basename(output_prefix)}_cultivation_report.txt"
+        )
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report)
         
@@ -357,26 +371,24 @@ def cultivation_command(input_path: str,
         print("Cultivation Analysis Summary")
         print("=" * 60)
         
-        if 'summary' in results:
-            summary = results['summary']
+        if results:
+            summary = analyzer.get_summary(results)
+            recommendations = analyzer.generate_summary_recommendations(results)
+
             print(f"Total pathways analyzed: {summary.get('total_pathways', 0)}")
-            print(f"Amino acid pathways: {summary.get('amino_acid_pathways', 0)}")
-            print(f"Vitamin pathways: {summary.get('vitamin_pathways', 0)}")
-            print(f"Nucleotide pathways: {summary.get('nucleotide_pathways', 0)}")
-            print(f"ATP pathways: {summary.get('atp_pathways', 0)}")
-            print(f"Cultivability score: {summary.get('cultivability_score', 0):.2f}")
-            print(f"Cultivability level: {summary.get('cultivability_level', 'Unknown')}")
-        
-        if 'recommendations' in results and results['recommendations']:
+            print(f"Amino acid pathways: {summary['amino_acid']['total']}")
+            print(f"Vitamin pathways: {summary['vitamin_coenzyme']['total']}")
+            print(f"Nucleotide pathways: {summary['nucleotide']['total']}")
+            print(f"ATP pathways: {summary['atp']['total']}")
+            print(f"Average completeness: {summary.get('avg_completeness', 0):.2f}")
+
             print("\nCultivation Recommendations:")
-            for i, rec in enumerate(results['recommendations'][:5], 1):
-                print(f"  {i}. {rec}")
-            
-            if len(results['recommendations']) > 5:
-                print(f"  ... and {len(results['recommendations']) - 5} more (see detailed report)")
+            for line in recommendations.splitlines()[2:8]:
+                if line.strip():
+                    print(f"  {line.strip()}")
         
         print(f"\nAnalysis time: {analysis_time:.2f} seconds")
-        print(f"Report saved to: {output_prefix}_cultivation_report.txt")
+        print(f"Report saved to: {report_file}")
         print("=" * 60)
         
         logger.info(f"Cultivation analysis completed in {analysis_time:.2f} seconds")
@@ -930,49 +942,37 @@ def _estimate_temp_range(ogt: float) -> str:
     return f"{t_min}-{t_max}"
 
 
-# Chinese amino acid name -> English translation
-_AA_CN_TO_EN = {
-    '半胱氨酸': 'Cysteine',
-    '苯丙氨酸': 'Phenylalanine',
-    '蛋氨酸': 'Methionine',
-    '脯氨酸': 'Proline',
-    '精氨酸': 'Arginine',
-    '赖氨酸': 'Lysine',
-    '酪氨酸': 'Tyrosine',
-    '亮氨酸': 'Leucine',
-    '异亮氨酸': 'Isoleucine',
-    '色氨酸': 'Tryptophan',
-    '苏氨酸': 'Threonine',
-    '缬氨酸': 'Valine',
-    '丝氨酸': 'Serine',
-    '组氨酸': 'Histidine',
-}
-
-
-def _extract_missing_amino_acids(cult_results: Dict) -> str:
+def _extract_missing_amino_acids(cult_results: Dict, analyzer=None) -> str:
     """
     Extract amino acids whose biosynthesis pathways are all incomplete.
 
+    Uses the analyzer's own amino-acid/pathway map. The previous implementation
+    looked for the Chinese substring '生物合成' in the result keys, but results
+    are keyed by English pathway names, so it always returned an empty string.
+
     Returns a comma-separated string of English amino acid names.
     """
-    # Build amino acid -> [completeness values] mapping
-    aa_completeness: Dict[str, List[float]] = {}
-    for pathway_name, pathway_data in cult_results.items():
-        if '生物合成' not in pathway_name:
-            continue
-        aa_name = pathway_name.split('生物合成')[0]
-        if aa_name not in aa_completeness:
-            aa_completeness[aa_name] = []
-        aa_completeness[aa_name].append(pathway_data.get('completeness', 0.0))
-
     missing = []
-    for aa_name, completeness_list in aa_completeness.items():
-        # All pathways for this amino acid are incomplete (< 100%)
-        if all(c < 1.0 for c in completeness_list):
-            en_name = _AA_CN_TO_EN.get(aa_name, aa_name)
-            missing.append(en_name)
 
-    return ', '.join(missing) if missing else ''
+    if analyzer is not None:
+        aa_analysis = analyzer.analyze_amino_acid_biosynthesis(cult_results)
+        missing = aa_analysis.get('summary', {}).get('missing_list', [])
+    else:
+        from metharct.core.cultivation_analyzer import CultivationAnalyzer as _CA
+
+        for aa_name, info in _CA.AMINO_ACID_PATHWAY_MAP.items():
+            pathways = info.get('pathways', [])
+            if not pathways:
+                continue
+            completeness = [
+                cult_results.get(pathway, {}).get('completeness', 0.0)
+                for pathway in pathways
+            ]
+            if all(value < 1.0 for value in completeness):
+                missing.append(aa_name)
+
+    names = [aa.split(' (')[0] for aa in missing]
+    return ', '.join(names) if names else ''
 
 
 def _run_single_batch_analysis(
@@ -1060,7 +1060,9 @@ def _run_single_batch_analysis(
     try:
         cultivation = analyzers['cultivation']
         cult_results = cultivation.analyze_genome(genome_file=input_str)
-        row['Additional_amino_acids_required'] = _extract_missing_amino_acids(cult_results)
+        row['Additional_amino_acids_required'] = _extract_missing_amino_acids(
+            cult_results, cultivation
+        )
     except Exception as e:
         logger.warning(f"[{faa_path.name}] Cultivation failed: {e}")
 
@@ -1197,7 +1199,7 @@ def batch_command(input_dir: str,
         file_start = time.time()
         print(f"[{idx}/{len(faa_files)}] {faa_file.name}")
 
-        prefix = faa_file.stem
+        prefix = os.path.join(str(output_path.parent), faa_file.stem)
         row = _run_single_batch_analysis(
             faa_path=faa_file,
             output_prefix=prefix,

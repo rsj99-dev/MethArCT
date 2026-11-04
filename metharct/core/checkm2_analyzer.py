@@ -7,6 +7,7 @@ Assesses genome quality and completeness using CheckM2 for cultivability evaluat
 """
 
 import os
+import shlex
 import subprocess
 import json
 import pandas as pd
@@ -25,11 +26,15 @@ class CheckM2Analyzer:
         
         # Tool configuration - WSL support
         self.use_wsl = self.config.get('tools.checkm2.use_wsl', False)
-        
+
+        # Always keep the command as an argument list ("wsl checkm2" must not
+        # be treated as a single executable name).
         if self.use_wsl:
-            self.checkm2_path = self.config.get('tools.checkm2.wsl_path', 'wsl checkm2')
+            wsl_command = self.config.get('tools.checkm2.wsl_path', 'wsl checkm2')
+            self.checkm2_cmd = shlex.split(wsl_command) or ['wsl', 'checkm2']
         else:
-            self.checkm2_path = self.config.get('tools.checkm2.path', 'checkm2')
+            self.checkm2_cmd = [self.config.get('tools.checkm2.path', 'checkm2')]
+        self.checkm2_path = ' '.join(self.checkm2_cmd)
             
         self.threads = self.config.get('tools.checkm2.threads', 4)
         
@@ -58,22 +63,12 @@ class CheckM2Analyzer:
             True if CheckM2 is available, False otherwise
         """
         try:
-            if self.use_wsl:
-                # Check in WSL environment
-                result = subprocess.run(
-                    ['wsl', 'checkm2', '--version'],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-            else:
-                # Check in local environment
-                result = subprocess.run(
-                    [self.checkm2_path, '--version'],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
+            result = subprocess.run(
+                self.checkm2_cmd + ['--version'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
             
             if result.returncode == 0:
                 version = result.stdout.strip()
@@ -82,20 +77,12 @@ class CheckM2Analyzer:
                 return True
             else:
                 # Try alternative help command
-                if self.use_wsl:
-                    result = subprocess.run(
-                        ['wsl', 'checkm2', '--help'],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                else:
-                    result = subprocess.run(
-                        [self.checkm2_path, '--help'],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
+                result = subprocess.run(
+                    self.checkm2_cmd + ['--help'],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
                 
                 if result.returncode == 0 and 'checkm2' in result.stdout.lower():
                     env_type = "WSL" if self.use_wsl else "Local"
@@ -170,8 +157,9 @@ class CheckM2Analyzer:
         Returns:
             Analysis results dictionary
         """
-        # Create output directory
-        output_dir = os.path.join(self.results_dir, f"{output_prefix}_checkm2")
+        # Create output directory next to the requested output prefix
+        prefix_dir = os.path.dirname(os.path.abspath(output_prefix))
+        output_dir = os.path.join(prefix_dir, f"{os.path.basename(output_prefix)}_checkm2")
         FileUtils.ensure_dir(output_dir)
         
         # Prepare input for CheckM2
@@ -192,11 +180,11 @@ class CheckM2Analyzer:
             raise ValueError(f"Invalid input type {input_type} for path {input_path}")
         
         # Build CheckM2 command
-        cmd = [
-            self.checkm2_path, 'predict',
+        cmd = self.checkm2_cmd + [
+            'predict',
             '--threads', str(self.threads),
-            '--input', input_for_checkm2,
-            '--output-directory', output_dir,
+            '--input', self._host_path(input_for_checkm2),
+            '--output-directory', self._host_path(output_dir),
             '--force'  # Overwrite existing results
         ]
         
@@ -220,7 +208,9 @@ class CheckM2Analyzer:
                 capture_output=True,
                 text=True,
                 timeout=3600,  # 1 hour timeout
-                cwd=os.path.dirname(output_dir)  # Run in parent directory to avoid path issues
+                # Run in parent directory to avoid path issues (WSL paths are
+                # already absolute, so cwd is left to WSL)
+                cwd=None if self.use_wsl else os.path.dirname(output_dir)
             )
             
             # Log output for debugging
@@ -277,6 +267,12 @@ class CheckM2Analyzer:
                 'message': f'Error running CheckM2: {str(e)}'
             }
     
+    def _host_path(self, path) -> str:
+        """Convert a local path to the format expected by CheckM2."""
+        if self.use_wsl:
+            return FileUtils.to_wsl_path(path)
+        return str(path)
+
     def _process_results(self, checkm2_result: Dict, input_path: Path) -> Dict:
         """
         Process CheckM2 analysis results
@@ -488,7 +484,10 @@ class CheckM2Analyzer:
             output_prefix: Output file prefix
         """
         # Save only one CSV summary file, avoid generating unnecessary JSON files
-        csv_file = os.path.join(self.results_dir, f"{output_prefix}_checkm2_summary.csv")
+        prefix_dir = os.path.dirname(os.path.abspath(output_prefix))
+        csv_file = os.path.join(
+            prefix_dir, f"{os.path.basename(output_prefix)}_checkm2_summary.csv"
+        )
         
         if results['results']:
             df_results = pd.DataFrame(results['results'])

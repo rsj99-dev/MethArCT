@@ -59,6 +59,10 @@ class MethArCTAnalyzer:
                             **kwargs) -> Dict:
         """
         Execute comprehensive analysis
+
+        The analysis is orchestrated by ``PathwayPredictor`` only once; the
+        previous implementation ran DIAMOND and the antibiotic prediction twice
+        and called a non-existent CheckM2 method.
         
         Args:
             input_file: Input file path (FASTA format)
@@ -66,7 +70,8 @@ class MethArCTAnalyzer:
             run_diamond: Whether to run Diamond analysis
             run_checkm2: Whether to run CheckM2 analysis
             run_antibiotic: Whether to run antibiotic resistance prediction
-            **kwargs: Other parameters
+            **kwargs: Other parameters forwarded to PathwayPredictor
+                (run_cultivation, run_susha, run_huainanzi, run_ph)
             
         Returns:
             Dictionary containing all analysis results
@@ -75,6 +80,7 @@ class MethArCTAnalyzer:
             output_dir = self.results_dir
             
         FileUtils.ensure_dir(output_dir)
+        output_prefix = os.path.join(output_dir, Path(input_file).stem)
         
         results = {
             'input_file': input_file,
@@ -85,42 +91,25 @@ class MethArCTAnalyzer:
         self.logger.info(f"Starting comprehensive analysis: {input_file}")
         
         try:
-            # Diamond metabolic pathway analysis
-            if run_diamond:
-                self.logger.info("Running Diamond metabolic pathway analysis...")
-                diamond_results = self.diamond_analyzer.analyze_sequence(
-                    input_file, 
-                    os.path.join(output_dir, 'diamond')
-                )
-                results['analysis_results']['diamond'] = diamond_results
-                
-            # CheckM2 genome quality assessment
-            if run_checkm2:
-                self.logger.info("Running CheckM2 genome quality assessment...")
-                checkm2_results = self.checkm2_analyzer.analyze(
-                    input_file,
-                    os.path.join(output_dir, 'checkm2')
-                )
-                results['analysis_results']['checkm2'] = checkm2_results
+            comprehensive_results = self.pathway_predictor.predict_comprehensive(
+                input_path=input_file,
+                output_prefix=output_prefix,
+                include_diamond=run_diamond,
+                include_checkm2=run_checkm2,
+                include_cultivation=kwargs.get('run_cultivation', True),
+                include_susha=kwargs.get('run_susha', True),
+                include_huainanzi=kwargs.get('run_huainanzi', True),
+                include_ph=kwargs.get('run_ph', True),
+                include_antibiotic=run_antibiotic,
+            )
 
-            # Antibiotic resistance prediction
-            if run_antibiotic:
-                self.logger.info("Running antibiotic resistance prediction...")
-                antibiotic_results = self.antibiotic_analyzer.predict_antibiotics(
-                    input_file=input_file,
-                    output_prefix=os.path.join(output_dir, 'antibiotic', os.path.basename(input_file)),
-                )
-                results['analysis_results']['antibiotic'] = antibiotic_results
-                
-            # Metabolic pathway prediction (based on Diamond results)
-            if run_diamond:
-                self.logger.info("Running metabolic pathway prediction...")
-                pathway_results = self.pathway_predictor.predict_comprehensive(
-                    input_path=input_file,
-                    output_prefix=os.path.basename(input_file).replace('.faa', ''),
-                    include_checkm2=False
-                )
-                results['analysis_results']['pathways'] = pathway_results
+            results['analysis_results'] = comprehensive_results.get('results', {})
+            results['integrated_analysis'] = comprehensive_results.get(
+                'integrated_analysis', {}
+            )
+            results['analyses_performed'] = comprehensive_results.get(
+                'analyses_performed', []
+            )
                 
             # Save comprehensive results
             results_file = os.path.join(output_dir, 'comprehensive_results.json')
@@ -150,7 +139,9 @@ class MethArCTAnalyzer:
         if output_dir is None:
             output_dir = os.path.join(self.results_dir, 'diamond')
             
-        return self.diamond_analyzer.analyze_sequence(input_file, output_dir)
+        output_prefix = os.path.join(output_dir, Path(input_file).stem)
+        FileUtils.ensure_dir(output_dir)
+        return self.diamond_analyzer.analyze_sequence(input_file, output_prefix)
     
     def analyze_checkm2(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
         """
@@ -166,7 +157,11 @@ class MethArCTAnalyzer:
         if output_dir is None:
             output_dir = os.path.join(self.results_dir, 'checkm2')
             
-        return self.checkm2_analyzer.analyze(input_file, output_dir)
+        FileUtils.ensure_dir(output_dir)
+        output_prefix = os.path.join(output_dir, Path(input_file).stem)
+        return self.checkm2_analyzer.analyze_genome_quality(
+            input_file, output_prefix=output_prefix
+        )
     
     def analyze_antibiotic(self, input_file: str, output_dir: Optional[str] = None) -> Dict:
         """
@@ -182,9 +177,10 @@ class MethArCTAnalyzer:
         if output_dir is None:
             output_dir = os.path.join(self.results_dir, 'antibiotic')
     
+        FileUtils.ensure_dir(output_dir)
         return self.antibiotic_analyzer.predict_antibiotics(
             input_file=input_file,
-            output_prefix=os.path.join(output_dir, os.path.basename(input_file)),
+            output_prefix=os.path.join(output_dir, Path(input_file).stem),
         )
     
     def get_analysis_summary(self, results: Dict) -> Dict:

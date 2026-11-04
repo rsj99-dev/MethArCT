@@ -8,6 +8,7 @@ and cultivability evaluation.
 """
 
 import os
+import shlex
 import subprocess
 import tempfile
 import shutil
@@ -48,11 +49,16 @@ class DiamondAnalyzer:
         
         # Tool configuration - WSL support
         self.use_wsl = self.config.get('tools.diamond.use_wsl', False)
-        
+
+        # Always keep the command as an argument list.  Joining "wsl diamond"
+        # into a single string makes subprocess look for an executable literally
+        # named "wsl diamond".
         if self.use_wsl:
-            self.diamond_path = self.config.get('tools.diamond.wsl_path', 'wsl diamond')
+            wsl_command = self.config.get('tools.diamond.wsl_path', 'wsl diamond')
+            self.diamond_cmd = shlex.split(wsl_command) or ['wsl', 'diamond']
         else:
-            self.diamond_path = self.config.get('tools.diamond.path', 'diamond')
+            self.diamond_cmd = [self.config.get('tools.diamond.path', 'diamond')]
+        self.diamond_path = ' '.join(self.diamond_cmd)
             
         self.threads = self.config.get('tools.diamond.threads', 4)
         self.evalue = self.config.get('tools.diamond.evalue', 1e-5)
@@ -84,12 +90,14 @@ class DiamondAnalyzer:
         self.pathway_names = self.config.get('pathway_names', {})
         self.reference_counts = self.config.get('reference_sequence_counts', {})
         self._reference_avg_lengths = {}  # db_name -> average amino acid length
+        self._reference_subject_counts = {}  # db_name -> unique subject IDs
         
         # Check tool availability
         self._check_diamond_availability()
         
         # Database preparation is deferred to analyze_sequence() for lazy initialization
         self._databases_prepared = False
+        self.database_preparation_failures = []
     
     def _ensure_databases(self):
         """Ensure databases are prepared before analysis (lazy initialization)."""
@@ -105,22 +113,12 @@ class DiamondAnalyzer:
             True if Diamond is available, False otherwise
         """
         try:
-            if self.use_wsl:
-                # Check in WSL environment
-                result = subprocess.run(
-                    ['wsl', 'diamond', 'version'],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-            else:
-                # Check in local environment
-                result = subprocess.run(
-                    [self.diamond_path, 'version'],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
+            result = subprocess.run(
+                self.diamond_cmd + ['version'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
             
             if result.returncode == 0:
                 version = result.stdout.strip()
@@ -134,40 +132,94 @@ class DiamondAnalyzer:
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             self.logger.error(f"Error checking Diamond availability: {str(e)}")
             return False
+
+    def _host_path(self, path) -> str:
+        """Convert a local path to the format expected by the DIAMOND process."""
+        if self.use_wsl:
+            return FileUtils.to_wsl_path(path)
+        return str(path)
     
     def _prepare_databases(self):
         """
         Prepare Diamond databases from reference sequences
         """
         self.logger.info("Preparing Diamond databases...")
+        failed_databases = []
         
         # Get all database paths from config
         db_paths = self.config.get_all_database_paths()
         
         for db_name, fasta_path in db_paths.items():
+            # Cultivation is a directory of per-pathway FASTA files, not a
+            # single searchable database. Skip any non-file entry.
+            if os.path.isdir(fasta_path):
+                self.logger.debug(
+                    f"Skipping directory database entry: {db_name} -> {fasta_path}"
+                )
+                continue
+
+            if not os.path.exists(fasta_path):
+                self.logger.warning(f"Reference file not found: {fasta_path}")
+                continue
+
             # Compute average sequence length for dynamic threshold (all databases)
-            if os.path.exists(fasta_path):
-                avg_len = self._compute_avg_sequence_length(fasta_path)
-                if avg_len > 0:
-                    self._reference_avg_lengths[db_name] = avg_len
-                    self.logger.debug(
-                        f"{db_name}: avg sequence length = {avg_len:.1f} aa"
+            avg_len = self._compute_avg_sequence_length(fasta_path)
+            if avg_len > 0:
+                self._reference_avg_lengths[db_name] = avg_len
+                self.logger.debug(
+                    f"{db_name}: avg sequence length = {avg_len:.1f} aa"
+                )
+
+            # Record the actual number of unique reference subjects so
+            # sulfur/nitrogen completeness cannot exceed 100 % while a
+            # retrievable subject is still missing.
+            subject_count = self._count_unique_subjects(fasta_path)
+            if subject_count > 0:
+                self._reference_subject_counts[db_name] = subject_count
+                configured = self.reference_counts.get(db_name)
+                if (db_name not in METHANE_DATABASES
+                        and configured is not None
+                        and int(configured) != subject_count):
+                    self.logger.warning(
+                        f"{db_name}: configured reference_sequence_counts="
+                        f"{configured} differs from {subject_count} unique FASTA "
+                        f"subjects; using {subject_count} for this run"
                     )
             
             db_file = os.path.join(self.db_dir, f"{db_name}.dmnd")
             
-            # Check if database exists and is newer than source file
-            if (os.path.exists(db_file) and 
-                os.path.exists(fasta_path) and
-                os.path.getmtime(db_file) > os.path.getmtime(fasta_path)):
+            # Check if database exists and is up to date.  Archives extracted
+            # from zip often carry identical timestamps, so use >= instead of >.
+            if (os.path.exists(db_file) and
+                os.path.getmtime(db_file) >= os.path.getmtime(fasta_path)):
                 self.logger.debug(f"Database {db_name} is up to date")
                 continue
             
             # Create or update database
-            if os.path.exists(fasta_path):
-                self._create_diamond_database(fasta_path, db_name)
-            else:
-                self.logger.warning(f"Reference file not found: {fasta_path}")
+            if not self._create_diamond_database(fasta_path, db_name):
+                failed_databases.append(db_name)
+
+        self.database_preparation_failures = failed_databases
+        if failed_databases:
+            self.logger.error(
+                "Diamond database preparation failed for: "
+                + ", ".join(failed_databases)
+            )
+
+    @staticmethod
+    def _count_unique_subjects(fasta_path: str) -> int:
+        """Count unique subject IDs (first token of each FASTA header)."""
+        subjects = set()
+        try:
+            with open(fasta_path, 'r', encoding='utf-8', errors='ignore') as handle:
+                for line in handle:
+                    if line.startswith('>'):
+                        header = line[1:].strip()
+                        if header:
+                            subjects.add(header.split()[0])
+        except Exception:
+            return 0
+        return len(subjects)
     
     def _compute_avg_sequence_length(self, fasta_path: str) -> float:
         """
@@ -250,10 +302,10 @@ class DiamondAnalyzer:
         try:
             db_path = os.path.join(self.db_dir, db_name)
             
-            cmd = [
-                self.diamond_path, 'makedb',
-                '--in', fasta_path,
-                '--db', db_path,
+            cmd = self.diamond_cmd + [
+                'makedb',
+                '--in', self._host_path(fasta_path),
+                '--db', self._host_path(db_path),
                 '--threads', str(self.threads)
             ]
             
@@ -308,7 +360,10 @@ class DiamondAnalyzer:
         
         # Get databases to search
         if databases is None:
-            databases = list(self.config.get_all_database_paths().keys())
+            databases = [
+                name for name, path in self.config.get_all_database_paths().items()
+                if os.path.isfile(path)
+            ]
         
         self.logger.info(f"Starting Diamond analysis for {input_file.name}")
         self.logger.info(f"Searching against {len(databases)} databases")
@@ -324,7 +379,7 @@ class DiamondAnalyzer:
                 search_results[db_name] = result
         
         # Process and summarize results
-        analysis_results = self._process_results(search_results, input_file)
+        analysis_results = self._process_results(search_results, input_file, databases)
         
         # Save results
         self._save_results(analysis_results, output_prefix)
@@ -373,10 +428,10 @@ class DiamondAnalyzer:
         Returns:
             Search results dictionary or None if failed
         """
-        db_path = os.path.join(self.db_dir, f"{db_name}.dmnd")
+        db_path = os.path.join(self.db_dir, db_name)
         
-        if not os.path.exists(db_path):
-            self.logger.warning(f"Database not found: {db_path}")
+        if not os.path.exists(f"{db_path}.dmnd"):
+            self.logger.warning(f"Database not found: {db_path}.dmnd")
             return None
         
         # Create output file in the same directory as output_prefix
@@ -392,11 +447,11 @@ class DiamondAnalyzer:
         else:
             search_evalue = self.LOW_E_VALUE_THRESHOLD
         
-        cmd = [
-            self.diamond_path, 'blastp',
-            '--query', str(input_file),
-            '--db', db_path,
-            '--out', output_file,
+        cmd = self.diamond_cmd + [
+            'blastp',
+            '--query', self._host_path(input_file),
+            '--db', self._host_path(db_path),
+            '--out', self._host_path(output_file),
             '--outfmt', '6', 'qseqid', 'sseqid', 'pident', 'length', 
                        'mismatch', 'gapopen', 'qstart', 'qend', 
                        'sstart', 'send', 'evalue', 'bitscore',
@@ -515,141 +570,221 @@ class DiamondAnalyzer:
             self.logger.error(f"Error in Diamond search for {db_name}: {str(e)}")
             return None
     
-    def _process_results(self, search_results: Dict, input_file: Path) -> Dict:
+    def _get_reference_count(self, db_name: str) -> int:
+        """Return the completeness denominator for a database.
+
+        Methane pathways use the configured number of functional units because
+        alternative genes are merged by ``PATHWAY_STRATEGIES``. Sulfur and
+        nitrogen pathways use the number of unique reference subjects actually
+        present in the FASTA file, so 100 % cannot be reported while a
+        retrievable subject is still missing.
+        """
+        if db_name in METHANE_DATABASES:
+            return int(self.reference_counts.get(db_name, 1)) or 1
+
+        subject_count = self._reference_subject_counts.get(db_name)
+        if subject_count:
+            return int(subject_count)
+        return int(self.reference_counts.get(db_name, 1)) or 1
+
+    def _empty_pathway_result(self, db_name: str, reference_count: int,
+                              search_status: str) -> Dict:
+        """Build a zero-hit result so every searched database is represented."""
+        entry = {
+            'pathway_name': self.pathway_names.get(db_name, db_name),
+            'reference_sequences': reference_count,
+            'search_status': search_status,
+        }
+
+        if db_name == CULTIVATION_DATABASE:
+            entry.update({
+                'cultivability_hits': 0,
+                'cultivability_percentage': 0.0,
+                'cultivability_status': 'Not detected',
+                'average_identity': 0,
+                'best_hits': [],
+            })
+        elif db_name in METHANE_DATABASES:
+            entry.update({
+                'low_threshold_hits': 0,
+                'low_completeness_percentage': 0.0,
+                'average_identity_low': 0,
+                'best_hits_low': [],
+            })
+        else:
+            entry.update({
+                'high_threshold_hits': 0,
+                'low_threshold_hits': 0,
+                'high_completeness_percentage': 0.0,
+                'low_completeness_percentage': 0.0,
+                'metabolic_pathway_completeness': '0.00%~0.00%',
+                'average_identity_high': 0,
+                'average_identity_low': 0,
+                'best_hits_high': [],
+                'best_hits_low': [],
+            })
+
+        return entry
+
+    def _build_pathway_result(self, db_name: str, result: Dict,
+                              reference_count: int, total_sequences: int) -> Dict:
+        """Build a pathway result from a DIAMOND search result."""
+        if db_name == CULTIVATION_DATABASE:
+            # Calculate how many different query sequences matched
+            # cultivability-related genes (deduplicated)
+            cultivability_hits = result['cultivability_hits']
+            cultivability_matched = len(cultivability_hits['qseqid'].drop_duplicates())
+            cultivability_percentage = (
+                (cultivability_matched / total_sequences) * 100
+                if total_sequences else 0.0
+            )
+
+            if cultivability_percentage <= 11:
+                cultivability_status = "Cultivable"
+            elif cultivability_percentage <= 13:
+                cultivability_status = "Co-cultivation dependent"
+            else:
+                cultivability_status = "Obligate symbiont"
+
+            return {
+                'pathway_name': self.pathway_names.get(db_name, db_name),
+                'reference_sequences': reference_count,
+                'search_status': 'searched',
+                'cultivability_hits': cultivability_matched,
+                'cultivability_percentage': round(cultivability_percentage, 2),
+                'cultivability_status': cultivability_status,
+                'average_identity': round(
+                    cultivability_hits['pident'].mean(), 2
+                ) if len(cultivability_hits) > 0 else 0,
+                'best_hits': cultivability_hits.nlargest(5, 'bitscore').to_dict('records')
+            }
+
+        # Metabolic pathway database processing (dual threshold analysis)
+        if db_name in METHANE_DATABASES:
+            # Methane metabolism pathway: single threshold analysis (only keep
+            # low threshold). Homologous genes (e.g., FwdF/FwdG/FwdH, Hmd/Mtd)
+            # have similar sequences but represent different gene functions and
+            # should be counted separately.
+            low_threshold_matched = evaluate_pathway(
+                db_name, result['low_threshold_hits'], reference_count, self.logger
+            )
+            low_threshold_matched = min(low_threshold_matched, reference_count)
+            low_completeness = (low_threshold_matched / reference_count) * 100
+
+            return {
+                'pathway_name': self.pathway_names.get(db_name, db_name),
+                'low_threshold_hits': low_threshold_matched,
+                'reference_sequences': reference_count,
+                'search_status': 'searched',
+                'low_completeness_percentage': round(low_completeness, 2),
+                'average_identity_low': round(
+                    result['low_threshold_hits']['pident'].mean(), 2
+                ) if len(result['low_threshold_hits']) > 0 else 0,
+                'best_hits_low': result['low_threshold_hits'].nlargest(5, 'bitscore').to_dict('records')
+            }
+
+        # Sulfur and nitrogen pathways keep dual threshold analysis and count
+        # unique reference subjects. The denominator is the number of unique
+        # FASTA subjects (see _get_reference_count), never a smaller configured
+        # value.
+        high_threshold_matched = len(
+            result['high_threshold_hits'].drop_duplicates(subset=['sseqid'])
+        )
+        low_threshold_matched = len(
+            result['low_threshold_hits'].drop_duplicates(subset=['sseqid'])
+        )
+        high_threshold_matched = min(high_threshold_matched, reference_count)
+        low_threshold_matched = min(low_threshold_matched, reference_count)
+
+        high_completeness = (high_threshold_matched / reference_count) * 100
+        low_completeness = (low_threshold_matched / reference_count) * 100
+        metabolic_pathway_completeness = (
+            f"{high_completeness:.2f}%~{low_completeness:.2f}%"
+        )
+
+        return {
+            'pathway_name': self.pathway_names.get(db_name, db_name),
+            'high_threshold_hits': high_threshold_matched,
+            'low_threshold_hits': low_threshold_matched,
+            'reference_sequences': reference_count,
+            'search_status': 'searched',
+            'high_completeness_percentage': round(high_completeness, 2),
+            'low_completeness_percentage': round(low_completeness, 2),
+            'metabolic_pathway_completeness': metabolic_pathway_completeness,
+            'average_identity_high': round(
+                result['high_threshold_hits']['pident'].mean(), 2
+            ) if len(result['high_threshold_hits']) > 0 else 0,
+            'average_identity_low': round(
+                result['low_threshold_hits']['pident'].mean(), 2
+            ) if len(result['low_threshold_hits']) > 0 else 0,
+            'best_hits_high': result['high_threshold_hits'].nlargest(5, 'bitscore').to_dict('records'),
+            'best_hits_low': result['low_threshold_hits'].nlargest(5, 'bitscore').to_dict('records')
+        }
+
+    def _process_results(self, search_results: Dict, input_file: Path,
+                         databases: Optional[List[str]] = None) -> Dict:
         """
         Process and summarize Diamond search results with dual threshold analysis
         
         Args:
-            search_results: Raw search results
+            search_results: Raw search results (missing keys mean the search
+                did not run or failed)
             input_file: Input FASTA file
+            databases: Databases requested for this analysis
             
         Returns:
             Processed analysis results
         """
         # Count input sequences
         total_sequences = FileUtils.count_sequences(input_file)
-        
-        # Initialize results
+        requested = list(databases) if databases is not None else list(search_results.keys())
+
         pathway_results = {}
         summary_stats = {
             'total_input_sequences': total_sequences,
-            'databases_searched': len(search_results),
+            'databases_requested': len(requested),
+            'databases_searched': sum(1 for d in requested if d in search_results),
+            'raw_hit_pathways': 0,
+            'threshold_passed_pathways': 0,
             'pathways_detected': 0,
+            'complete_pathways': 0,
             'total_hits': 0
         }
-        
-        # Process each database result
-        for db_name, result in search_results.items():
-            if result and result['total_hits'] > 0:
-                reference_count = self.reference_counts.get(db_name, 1)
-                
-                if db_name == CULTIVATION_DATABASE:
-                    # Cultivability database processing
-                    # Calculate how many different query sequences matched cultivability-related genes (deduplicated)
-                    cultivability_matched = len(result['cultivability_hits']['qseqid'].drop_duplicates())
-                    # Modified calculation logic: matches / total genes * 100%
-                    cultivability_percentage = (cultivability_matched / total_sequences) * 100
-                    
-                    if cultivability_percentage <= 11:
-                        cultivability_status = "Cultivable"
-                    elif cultivability_percentage <= 13:
-                        cultivability_status = "Co-cultivation dependent"
-                    else:
-                        cultivability_status = "Obligate symbiont"
-                    
-                    pathway_results[db_name] = {
-                        'pathway_name': self.pathway_names.get(db_name, db_name),
-                        'reference_sequences': reference_count,
-                        'cultivability_hits': cultivability_matched,
-                        'cultivability_percentage': round(cultivability_percentage, 2),
-                        'cultivability_status': cultivability_status,
-                        'average_identity': round(
-                            result['cultivability_hits']['pident'].mean(), 2
-                        ) if len(result['cultivability_hits']) > 0 else 0,
-                        'best_hits': result['cultivability_hits'].nlargest(5, 'bitscore').to_dict('records')
-                    }
-                    
-                else:
-                    # Metabolic pathway database processing (dual threshold analysis)
-                    # Check if it's a methane metabolism pathway, if so use single threshold analysis
-                    if db_name in METHANE_DATABASES:
-                        # Methane metabolism pathway: single threshold analysis (only keep low threshold)
-                        # Note: Homologous genes (e.g., FwdF/FwdG/FwdH, Hmd/Mtd) have similar sequences but represent different gene functions and should be counted separately
-                        # Use data-driven strategy pattern for pathway evaluation
-                        low_threshold_matched = evaluate_pathway(
-                            db_name, result['low_threshold_hits'], reference_count, self.logger
-                        )
-                        # Cap matched count at reference count
-                        if low_threshold_matched > reference_count:
-                            low_threshold_matched = reference_count
 
-                        low_completeness = (low_threshold_matched / reference_count) * 100
-                        
-                        # Ensure completeness percentage does not exceed 100%
-                        if low_completeness > 100:
-                            self.logger.debug(f"Completeness percentage exceeds 100%, limited to 100%")
-                            low_completeness = 100
-                        
-                        pathway_results[db_name] = {
-                            'pathway_name': self.pathway_names.get(db_name, db_name),
-                            'low_threshold_hits': low_threshold_matched,
-                            'reference_sequences': reference_count,
-                            'low_completeness_percentage': round(low_completeness, 2),
-                            'average_identity_low': round(
-                                result['low_threshold_hits']['pident'].mean(), 2
-                            ) if len(result['low_threshold_hits']) > 0 else 0,
-                            'best_hits_low': result['low_threshold_hits'].nlargest(5, 'bitscore').to_dict('records')
-                        }
-                    else:
-                        # Other metabolic pathways (sulfur, nitrogen) maintain dual threshold analysis
-                        high_threshold_matched = len(result['high_threshold_hits'].drop_duplicates(subset=['sseqid']))
-                        low_threshold_matched = len(result['low_threshold_hits'].drop_duplicates(subset=['sseqid']))
-                        
-                        # Ensure detected gene count does not exceed reference sequence count
-                        if high_threshold_matched > reference_count:
-                            self.logger.debug(f"{db_name}: High threshold detected gene count ({high_threshold_matched}) exceeds reference sequence count ({reference_count}), limited to 100%")
-                            high_threshold_matched = reference_count
-                        if low_threshold_matched > reference_count:
-                            self.logger.debug(f"{db_name}: Low threshold detected gene count ({low_threshold_matched}) exceeds reference sequence count ({reference_count}), limited to 100%")
-                            low_threshold_matched = reference_count
-                        
-                        high_completeness = (high_threshold_matched / reference_count) * 100
-                        low_completeness = (low_threshold_matched / reference_count) * 100
-                        
-                        # Ensure completeness percentage does not exceed 100%
-                        if high_completeness > 100:
-                            self.logger.debug(f"{db_name}: High threshold completeness exceeds 100%, limited to 100%")
-                            high_completeness = 100
-                        if low_completeness > 100:
-                            self.logger.debug(f"{db_name}: Low threshold completeness exceeds 100%, limited to 100%")
-                            low_completeness = 100
-                        
-                        # Metabolic pathway completeness format: "high_threshold%~low_threshold%"
-                        metabolic_pathway_completeness = f"{high_completeness:.2f}%~{low_completeness:.2f}%"
-                        
-                        pathway_results[db_name] = {
-                            'pathway_name': self.pathway_names.get(db_name, db_name),
-                            'high_threshold_hits': high_threshold_matched,
-                            'low_threshold_hits': low_threshold_matched,
-                            'reference_sequences': reference_count,
-                            'high_completeness_percentage': round(high_completeness, 2),
-                            'low_completeness_percentage': round(low_completeness, 2),
-                            'metabolic_pathway_completeness': metabolic_pathway_completeness,
-                            'average_identity_high': round(
-                                result['high_threshold_hits']['pident'].mean(), 2
-                            ) if len(result['high_threshold_hits']) > 0 else 0,
-                            'average_identity_low': round(
-                                result['low_threshold_hits']['pident'].mean(), 2
-                            ) if len(result['low_threshold_hits']) > 0 else 0,
-                            'best_hits_high': result['high_threshold_hits'].nlargest(5, 'bitscore').to_dict('records'),
-                            'best_hits_low': result['low_threshold_hits'].nlargest(5, 'bitscore').to_dict('records')
-                        }
-                
+        for db_name in requested:
+            result = search_results.get(db_name)
+            reference_count = self._get_reference_count(db_name)
+
+            if result is None or result.get('total_hits', 0) == 0:
+                # Emit a zero-hit entry so downstream summaries use the full
+                # configured denominator instead of silently dropping pathways.
+                pathway_results[db_name] = self._empty_pathway_result(
+                    db_name,
+                    reference_count,
+                    search_status='searched' if result is not None else 'not_searched'
+                )
+                continue
+
+            summary_stats['raw_hit_pathways'] += 1
+            entry = self._build_pathway_result(
+                db_name, result, reference_count, total_sequences
+            )
+            pathway_results[db_name] = entry
+
+            summary_stats['total_hits'] += len(result.get('low_threshold_hits', []))
+
+            if db_name == CULTIVATION_DATABASE:
+                passed = entry['cultivability_hits'] > 0
+            else:
+                passed = entry.get('low_threshold_hits', 0) > 0
+
+            if passed:
+                summary_stats['threshold_passed_pathways'] += 1
                 summary_stats['pathways_detected'] += 1
-                if 'low_threshold_hits' in result:
-                    summary_stats['total_hits'] += len(result['low_threshold_hits'])
-                elif 'cultivability_hits' in result:
-                    pass
+
+            if entry.get('low_completeness_percentage', 0) >= 100:
+                summary_stats['complete_pathways'] += 1
+
         return {
             'input_file': str(input_file),
             'analysis_timestamp': pd.Timestamp.now().isoformat(),
@@ -723,6 +858,7 @@ class DiamondAnalyzer:
                     'Low_Threshold_Hits': pathway_data.get('low_threshold_hits', 0),
                     'Low_Completeness_Percentage': pathway_data.get('low_completeness_percentage', 0),
                     'Average_Identity_Low': pathway_data.get('average_identity_low', 0),
+                    'Search_Status': pathway_data.get('search_status', ''),
                     'Detection_Status': 'Detected' if pathway_data.get('low_threshold_hits', 0) > 0 else 'Not Detected'
                 })
             elif pathway_type in ['Sulfur', 'Nitrogen']:
@@ -741,6 +877,7 @@ class DiamondAnalyzer:
                     'Average_Identity_High': pathway_data.get('average_identity_high', 0),
                     'Average_Identity_Low': pathway_data.get('average_identity_low', 0),
                     'Metabolic_Pathway_Completeness': pathway_data.get('metabolic_pathway_completeness', ''),
+                    'Search_Status': pathway_data.get('search_status', ''),
                     'Detection_Status': 'Detected' if pathway_data.get('low_threshold_hits', 0) > 0 else 'Not Detected'
                 })
             elif pathway_type == 'Cultivation':
@@ -756,6 +893,7 @@ class DiamondAnalyzer:
                     'Cultivability_Percentage': pathway_data.get('cultivability_percentage', 0),
                     'Cultivability_Status': pathway_data.get('cultivability_status', ''),
                     'Average_Identity': pathway_data.get('average_identity', 0),
+                    'Search_Status': pathway_data.get('search_status', ''),
                     'Detection_Status': 'Detected' if pathway_data.get('cultivability_hits', 0) > 0 else 'Not Detected'
                 })
         

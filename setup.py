@@ -42,7 +42,36 @@ def get_version():
             for line in f:
                 if line.startswith("__version__"):
                     return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.7.1"
+    return "0.7.3"
+
+
+def collect_database_files():
+    """Collect reference databases for installation under share/metharct.
+
+    The databases live in the repository root ``data/databases`` directory.
+    Installing them with ``data_files`` makes ``pip install`` usable outside a
+    source checkout; ``Config.resolve_database_base_dir`` looks them up in
+    ``<prefix>/share/metharct/databases``.
+    """
+    data_files = []
+    source_root = os.path.join("data", "databases")
+    if not os.path.isdir(source_root):
+        return data_files
+
+    for root, _dirs, filenames in os.walk(source_root):
+        if not filenames:
+            continue
+        rel_dir = os.path.relpath(root, source_root)
+        if rel_dir == ".":
+            target = os.path.join("share", "metharct", "databases")
+        else:
+            target = os.path.join("share", "metharct", "databases", rel_dir)
+        data_files.append(
+            (target, [os.path.join(root, name) for name in filenames])
+        )
+
+    return data_files
+
 
 setup(
     name="metharct",
@@ -95,24 +124,25 @@ setup(
     entry_points={
         "console_scripts": [
             "metharct=metharct.cli.main:main",
-            "metharct-analyze=metharct.cli.commands:analyze_command",
         ],
     },
     include_package_data=True,
     package_data={
         "metharct": [
+            "data/*.yaml",
+            "data/*.yml",
+            # Supported if the databases are later moved inside the package
+            "data/databases/*",
             "data/databases/**/*",
             "core/susha/models/*.pkl",
             "core/mlhuainanzi/models/*.pkl",
             "core/ph_predictor/models/*.joblib",
             "core/ph_predictor/hmm/*.joblib",
-            "*.yaml",
-            "*.yml",
         ],
     },
     data_files=[
         ("share/metharct", ["metharct_config.yaml"]),
-    ],
+    ] + collect_database_files(),
     keywords=[
         "bioinformatics",
         "metagenomics",

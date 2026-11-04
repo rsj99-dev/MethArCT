@@ -158,7 +158,7 @@ results = analyzer.analyze_diamond('protein_sequences.faa')
 results = analyzer.analyze_antibiotic('protein_sequences.faa')
 
 # Full analysis (if optional tools are installed)
-results = analyzer.comprehensive_analysis('protein_sequences.faa')
+results = analyzer.analyze_comprehensive('protein_sequences.faa')
 
 print(results)
 ```

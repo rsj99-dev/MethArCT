@@ -50,9 +50,23 @@ class PathwayPredictor:
             'low': 0.2
         }
     
+    def _output_directory(self, output_prefix: str) -> str:
+        """Return the directory that should receive derived output files."""
+        out_dir = os.path.dirname(output_prefix)
+        if out_dir:
+            FileUtils.ensure_dir(out_dir)
+            return out_dir
+        return self.results_dir
+
+    def _resolve_output_path(self, output_prefix: str, suffix: str) -> str:
+        """Build an output path next to *output_prefix* instead of the CWD."""
+        out_dir = self._output_directory(output_prefix)
+        return os.path.join(out_dir, f"{os.path.basename(output_prefix)}{suffix}")
+
     def predict_comprehensive(self, 
                             input_path: Union[str, Path],
                             output_prefix: Optional[str] = None,
+                            include_diamond: bool = True,
                             include_checkm2: bool = True,
                             include_cultivation: bool = True,
                             include_susha: bool = True,
@@ -65,6 +79,7 @@ class PathwayPredictor:
         Args:
             input_path: Path to input FASTA file
             output_prefix: Prefix for output files
+            include_diamond: Whether to include Diamond pathway analysis
             include_checkm2: Whether to include CheckM2 analysis
             include_cultivation: Whether to include Cultivation analysis
             include_susha: Whether to include SuSha salinity prediction
@@ -96,20 +111,21 @@ class PathwayPredictor:
         }
         
         # 1. Diamond analysis (metabolic pathways, cultivability)
-        try:
-            self.logger.info("Running Diamond analysis...")
-            diamond_results = self.diamond_analyzer.analyze_sequence(
-                input_file=input_path, output_prefix=output_prefix
-            )
-            comprehensive_results['analyses_performed'].append('diamond')
-            comprehensive_results['results']['diamond'] = diamond_results
-            self.logger.info("Diamond analysis completed")
-        except Exception as e:
-            self.logger.error(f"Diamond analysis failed: {str(e)}")
-            comprehensive_results['results']['diamond'] = {
-                'status': 'failed',
-                'error': str(e)
-            }
+        if include_diamond:
+            try:
+                self.logger.info("Running Diamond analysis...")
+                diamond_results = self.diamond_analyzer.analyze_sequence(
+                    input_file=input_path, output_prefix=output_prefix
+                )
+                comprehensive_results['analyses_performed'].append('diamond')
+                comprehensive_results['results']['diamond'] = diamond_results
+                self.logger.info("Diamond analysis completed")
+            except Exception as e:
+                self.logger.error(f"Diamond analysis failed: {str(e)}")
+                comprehensive_results['results']['diamond'] = {
+                    'status': 'failed',
+                    'error': str(e)
+                }
         
         # 1.5. Cultivation analysis (metabolic pathway-based cultivability assessment)
         if include_cultivation:
@@ -119,11 +135,13 @@ class PathwayPredictor:
                 cultivability_assessment = self.cultivation_analyzer.generate_cultivability_assessment(cultivation_results)
                 
                 # Export cultivation results
-                cultivation_output = os.path.join(self.results_dir, f"{output_prefix}_cultivation")
+                cultivation_output = self._resolve_output_path(
+                    output_prefix, "_cultivation.csv"
+                )
                 self.cultivation_analyzer.export_results(
                     cultivation_results, 
                     cultivability_assessment, 
-                    cultivation_output + ".csv", 
+                    cultivation_output, 
                     'csv'
                 )
                 
@@ -132,7 +150,9 @@ class PathwayPredictor:
                 self.cultivation_analyzer.print_amino_acid_report(aa_analysis)
                 
                 # Export amino acid CSV
-                aa_csv_output = os.path.join(self.results_dir, f"{output_prefix}_amino_acid_biosynthesis.csv")
+                aa_csv_output = self._resolve_output_path(
+                    output_prefix, "_amino_acid_biosynthesis.csv"
+                )
                 self.cultivation_analyzer.export_amino_acid_csv(aa_analysis, aa_csv_output)
                 
                 comprehensive_results['analyses_performed'].append('cultivation')
@@ -217,7 +237,8 @@ class PathwayPredictor:
             try:
                 self.logger.info("Running antibiotic resistance prediction...")
                 antibiotic_results = self.antibiotic_analyzer.predict_antibiotics(
-                    input_file=input_path, output_prefix=output_prefix
+                    input_file=input_path,
+                    output_prefix=self._resolve_output_path(output_prefix, '')
                 )
                 if antibiotic_results.get('status') != 'failed':
                     comprehensive_results['analyses_performed'].append('antibiotic')
@@ -883,17 +904,17 @@ class PathwayPredictor:
             output_prefix: Output file prefix
         """
         # Save complete JSON results
-        json_file = os.path.join(self.results_dir, f"{output_prefix}_comprehensive_analysis.json")
+        json_file = self._resolve_output_path(output_prefix, "_comprehensive_analysis.json")
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False, cls=NumpyEncoder)
         
         # Save summary report
-        summary_file = os.path.join(self.results_dir, f"{output_prefix}_analysis_summary.txt")
+        summary_file = self._resolve_output_path(output_prefix, "_analysis_summary.txt")
         self._generate_summary_report(results, summary_file)
         
         # Save integrated results as CSV if possible
         if 'integrated_analysis' in results and 'status' not in results['integrated_analysis']:
-            csv_file = os.path.join(self.results_dir, f"{output_prefix}_integrated_summary.csv")
+            csv_file = self._resolve_output_path(output_prefix, "_integrated_summary.csv")
             self._save_integrated_csv(results['integrated_analysis'], csv_file)
         
         self.logger.info(f"Comprehensive results saved to {json_file}, {summary_file}")

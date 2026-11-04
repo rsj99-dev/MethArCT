@@ -71,12 +71,12 @@ databases:
     CNIT: "nitrogen/Complete nitrification.fasta"
     NFX1: "nitrogen/Nitrogen fixation1.fasta"
     NFX2: "nitrogen/Nitrogen fixation2.fasta"
-  cultivation:
-    base_dir: "cultivation"
-    amino_acids: "path.aa"
-    vitamins: "path.vc"
-    nucleotides: "path_hesuan"
-    atp: "path_atp"
+  cultivation_pathways:
+    amino_acid: "cultivation/path.aa"
+    vitamin: "cultivation/path.vc"
+    nucleotide: "cultivation/path_hesuan"
+    atp: "cultivation/path_atp"
+  kangshengsu: "kangshengsu"
 
 reference_sequence_counts:
     Formate: 18

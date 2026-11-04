@@ -8,18 +8,32 @@ cultivability based on metabolic pathway analysis.
 """
 
 import os
+import shlex
 import subprocess
 import tempfile
 import pandas as pd
 from typing import Dict, List, Any, Tuple, Optional
 import re
 import json
+import atexit
 import concurrent.futures
 import threading
 from datetime import datetime
 import time
 import glob
-from ..utils.file_utils import NumpyEncoder
+from ..utils.file_utils import NumpyEncoder, FileUtils
+
+# Some Windows zip/unzip combinations mangle Chinese filenames into literal
+# "#U5f02#U4eae..." sequences.  Decode them back before name mapping.
+_ENCODED_NAME_RE = re.compile(r'#[Uu]([0-9a-fA-F]{4})')
+
+
+def decode_encoded_filename(name: str) -> str:
+    """Decode ``#Uxxxx`` style filename escapes into normal Unicode."""
+    if '#U' not in name and '#u' not in name:
+        return name
+    return _ENCODED_NAME_RE.sub(lambda m: chr(int(m.group(1), 16)), name)
+
 
 class CultivationAnalyzer:
     """
@@ -243,25 +257,56 @@ class CultivationAnalyzer:
             config: Configuration dictionary containing tool paths, database paths and other parameters
         """
         # Get parameters from configuration
-        self.diamond_path = config.get('tools', {}).get('diamond', {}).get('path', 'diamond.exe')
-        self.use_wsl = config.get('tools', {}).get('diamond', {}).get('use_wsl', False)
-        self.threads = config.get('tools', {}).get('diamond', {}).get('threads', 4)
-        self.evalue = config.get('tools', {}).get('diamond', {}).get('evalue', 1e-5)
+        diamond_cfg = config.get('tools', {}).get('diamond', {})
+        self.diamond_path = diamond_cfg.get('path', 'diamond.exe')
+        self.use_wsl = diamond_cfg.get('use_wsl', False)
+        self.threads = diamond_cfg.get('threads', 4)
+        self.evalue = diamond_cfg.get('evalue', 1e-5)
+
+        # Keep the command as an argument list ("wsl diamond" must not be a
+        # single executable name).
+        if self.use_wsl:
+            wsl_command = diamond_cfg.get('wsl_path', 'wsl diamond')
+            self.diamond_cmd = shlex.split(wsl_command) or ['wsl', 'diamond']
+        else:
+            self.diamond_cmd = [self.diamond_path]
         
         # Database paths - support absolute and relative paths
-        base_dir = config.get('databases', {}).get('base_dir', 'data/databases')
+        db_cfg = config.get('databases', {})
+        base_dir = db_cfg.get('base_dir', 'data/databases')
         
         # If base_dir is relative path, make it relative to current working directory
         if not os.path.isabs(base_dir):
             base_dir = os.path.abspath(base_dir)
             
         self.cultivation_dir = os.path.join(base_dir, 'cultivation')
-        
-        # Metabolic pathway directories - updated to new database structure
-        self.amino_acid_dir = os.path.join(self.cultivation_dir, 'path.aa')
-        self.vitamin_dir = os.path.join(self.cultivation_dir, 'path.vc')
-        self.nucleotide_dir = os.path.join(self.cultivation_dir, 'path_hesuan')
-        self.atp_dir = os.path.join(self.cultivation_dir, 'path_atp')
+
+        legacy = db_cfg.get('cultivation')
+        if isinstance(legacy, dict):
+            legacy_base = os.path.join(base_dir, legacy.get('base_dir', 'cultivation'))
+            self.amino_acid_dir = os.path.join(legacy_base, legacy.get('amino_acids', 'path.aa'))
+            self.vitamin_dir = os.path.join(legacy_base, legacy.get('vitamins', 'path.vc'))
+            self.nucleotide_dir = os.path.join(legacy_base, legacy.get('nucleotides', 'path_hesuan'))
+            self.atp_dir = os.path.join(legacy_base, legacy.get('atp', 'path_atp'))
+        else:
+            cult_paths = db_cfg.get('cultivation_pathways', {}) or {}
+
+            def _pathway_dir(key: str, default: str) -> str:
+                rel_path = cult_paths.get(key, default)
+                if os.path.isabs(rel_path):
+                    return rel_path
+                return os.path.join(base_dir, rel_path)
+
+            self.amino_acid_dir = _pathway_dir('amino_acid', 'cultivation/path.aa')
+            self.vitamin_dir = _pathway_dir('vitamin', 'cultivation/path.vc')
+            self.nucleotide_dir = _pathway_dir('nucleotide', 'cultivation/path_hesuan')
+            self.atp_dir = _pathway_dir('atp', 'cultivation/path_atp')
+
+        # Genome DIAMOND databases are built once per input proteome and reused
+        # for every reference protein.
+        self._genome_db_cache: Dict[str, Dict[str, Any]] = {}
+        self._temp_dirs: List[str] = []
+        atexit.register(self._cleanup_temp_dirs)
         
         # Automatically get all metabolic pathway files from directory
         self.amino_acid_pathways = self._discover_pathways(self.amino_acid_dir, "Amino acid")
@@ -293,15 +338,37 @@ class CultivationAnalyzer:
             print(f"Warning: {pathway_type} FASTA directory does not exist: {directory}")
             return pathways
             
-        # Find all .fasta and .FASTA files
-        fasta_files = glob.glob(os.path.join(directory, "*.fasta")) + glob.glob(os.path.join(directory, "*.FASTA"))
+        # Find all .fasta and .FASTA files.  On case-insensitive filesystems
+        # (Windows) both globs return the same files, so de-duplicate by
+        # normalised absolute path before mapping.
+        discovered = {}
+        for pattern in ("*.fasta", "*.FASTA"):
+            for file_path in glob.glob(os.path.join(directory, pattern)):
+                key = os.path.normcase(os.path.abspath(file_path))
+                discovered.setdefault(key, file_path)
+        fasta_files = [discovered[key] for key in sorted(discovered)]
         
         for file_path in fasta_files:
             file_name = os.path.basename(file_path)
             # Strip extension (case-insensitive)
-            pathway_name = os.path.splitext(file_name)[0]
+            raw_name = os.path.splitext(file_name)[0]
+            # Recover names mangled into "#Uxxxx" escapes by zip tooling
+            decoded_name = decode_encoded_filename(raw_name)
             # Translate Chinese pathway names to English
-            english_name = self.PATHWAY_NAME_MAP.get(pathway_name, pathway_name)
+            english_name = self.PATHWAY_NAME_MAP.get(decoded_name)
+            if english_name is None:
+                print(
+                    f"Warning: Unmapped {pathway_type} pathway name "
+                    f"'{decoded_name}' ({file_name}); using the raw name"
+                )
+                english_name = decoded_name
+            elif english_name in pathways:
+                print(
+                    f"Warning: {pathway_type} pathway '{decoded_name}' maps to "
+                    f"duplicate English name '{english_name}'; keeping the "
+                    f"first file and ignoring {file_name}"
+                )
+                continue
             pathways[english_name] = file_path
             
         return pathways
@@ -368,93 +435,152 @@ class CultivationAnalyzer:
         
         return genes
     
-    def _run_diamond_search(self, query_seq: str, genome_file: str, evalue: float = 1e-5) -> Tuple[bool, Dict[str, Any]]:
+    def _host_path(self, path) -> str:
+        """Convert a local path to the format expected by the DIAMOND process."""
+        if self.use_wsl:
+            return FileUtils.to_wsl_path(path)
+        return str(path)
+
+    def _get_genome_db(self, genome_file: str) -> str:
         """
-        Use Diamond for sequence alignment
-        
+        Build (or reuse) a DIAMOND database for the input proteome.
+
+        The database is built once per genome and cached; every reference
+        protein is then searched against it in a single blastp run.
+        """
+        genome_path = os.path.abspath(genome_file)
+        mtime = os.path.getmtime(genome_path)
+        size = os.path.getsize(genome_path)
+
+        cached = self._genome_db_cache.get(genome_path)
+        if (cached and cached['mtime'] == mtime and cached['size'] == size
+                and os.path.exists(cached['db'] + '.dmnd')):
+            return cached['db']
+
+        work_dir = tempfile.mkdtemp(prefix='metharct_cultivation_')
+        self._temp_dirs.append(work_dir)
+        db_path = os.path.join(work_dir, 'genome_db')
+
+        cmd = self.diamond_cmd + [
+            'makedb',
+            '--in', self._host_path(genome_path),
+            '--db', self._host_path(db_path),
+            '--threads', str(self.threads),
+        ]
+        db_result = subprocess.run(cmd, capture_output=True, text=True)
+        if db_result.returncode != 0:
+            FileUtils.cleanup_temp_files([work_dir])
+            raise RuntimeError(
+                f"Diamond makedb failed for {genome_file}: {db_result.stderr}"
+            )
+
+        self._genome_db_cache[genome_path] = {
+            'db': db_path,
+            'mtime': mtime,
+            'size': size,
+        }
+        return db_path
+
+    def _run_diamond_batch(self, queries: List[Tuple[str, str]],
+                           genome_file: str,
+                           evalue: Optional[float] = None) -> Dict[str, Dict[str, Any]]:
+        """
+        Search many query proteins against one genome DIAMOND database.
+
         Args:
-            query_seq: Query sequence
-            genome_file: Genome protein sequence file path
-            evalue: E-value threshold
-            
+            queries: list of (query_id, sequence)
+            genome_file: genome protein sequence file
+            evalue: E-value threshold (defaults to the configured value)
+
         Returns:
-            (Whether match found, match details)
+            dict mapping query_id -> {'found': bool, 'hits': [...]}
         """
+        evalue = self.evalue if evalue is None else evalue
+        results = {qid: {'found': False, 'hits': []} for qid, _ in queries}
+
+        if not queries:
+            return results
+
+        temp_query_path = None
+        temp_output_path = None
         try:
-            # Create temporary query file
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.faa') as temp_query:
-                temp_query.write(f">query\n{query_seq}\n")
+            db_path = self._get_genome_db(genome_file)
+
+            with tempfile.NamedTemporaryFile(
+                mode='w+', delete=False, suffix='.faa', encoding='utf-8'
+            ) as temp_query:
+                for qid, sequence in queries:
+                    temp_query.write(f">{qid}\n{sequence}\n")
                 temp_query_path = temp_query.name
-            
-            # Create temporary output file
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt') as temp_output:
+
+            with tempfile.NamedTemporaryFile(
+                mode='w+', delete=False, suffix='.tsv', encoding='utf-8'
+            ) as temp_output:
                 temp_output_path = temp_output.name
-            
-            # Create temporary database file
-            temp_db_path = temp_query_path.replace('.faa', '.dmnd')
-            
-            # Build Diamond command
-            diamond_cmd = self.diamond_path
-            if self.use_wsl:
-                diamond_cmd = f"wsl {diamond_cmd}"
-            
-            # Create Diamond database for genome file
-            make_db_cmd = [
-                diamond_cmd, 'makedb',
-                '--in', genome_file,
-                '--db', temp_db_path
-            ]
-            
-            db_result = subprocess.run(make_db_cmd, capture_output=True, text=True)
-            
-            if db_result.returncode != 0:
-                # Clean up temporary files
-                self._cleanup_temp_files([temp_query_path, temp_output_path, temp_db_path])
-                return False, {'found': False, 'error': 'Database creation failed'}
-            
-            # Run diamond blastp command
-            blast_cmd = [
-                diamond_cmd, 'blastp',
-                '--query', temp_query_path,
-                '--db', temp_db_path,
-                '--outfmt', '6',  # Table format
+
+            cmd = self.diamond_cmd + [
+                'blastp',
+                '--query', self._host_path(temp_query_path),
+                '--db', self._host_path(db_path),
+                '--out', self._host_path(temp_output_path),
+                '--outfmt', '6', 'qseqid', 'sseqid', 'pident', 'length',
+                            'evalue', 'bitscore',
                 '--evalue', str(evalue),
-                '--max-target-seqs', '1',  # Only return best match
-                '--out', temp_output_path
+                '--max-target-seqs', '50',
+                '--threads', str(self.threads),
             ]
-            
-            result = subprocess.run(blast_cmd, capture_output=True, text=True)
-            
-            match_details = {'found': False, 'hits': []}
-            
-            if result.returncode == 0 and os.path.exists(temp_output_path):
-                with open(temp_output_path, 'r') as f:
-                    for line in f:
-                        if line.strip():
-                            parts = line.strip().split('\t')
-                            if len(parts) >= 12:
-                                hit_info = {
-                                    'subject_id': parts[1],
-                                    'identity': float(parts[2]),
-                                    'alignment_length': int(parts[3]),
-                                    'evalue': float(parts[10]),
-                                    'bitscore': float(parts[11])
-                                }
-                                
-                                # Set more relaxed conditions because distant species may have lower homology
-                                if hit_info['evalue'] <= evalue and hit_info['identity'] >= 20 and hit_info['alignment_length'] >= 30:
-                                    match_details['found'] = True
-                                    match_details['hits'].append(hit_info)
-            
-            # Clean up temporary files
-            self._cleanup_temp_files([temp_query_path, temp_output_path, temp_db_path])
-            
-            return match_details['found'], match_details
-            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Diamond blastp failed: {result.stderr}")
+                return results
+
+            best_hits: Dict[str, Dict[str, Any]] = {}
+            if os.path.exists(temp_output_path):
+                with open(temp_output_path, 'r', encoding='utf-8', errors='ignore') as handle:
+                    for line in handle:
+                        parts = line.rstrip('\n').split('\t')
+                        if len(parts) < 6:
+                            continue
+                        qid = parts[0]
+                        try:
+                            hit_info = {
+                                'subject_id': parts[1],
+                                'identity': float(parts[2]),
+                                'alignment_length': int(parts[3]),
+                                'evalue': float(parts[4]),
+                                'bitscore': float(parts[5]),
+                            }
+                        except ValueError:
+                            continue
+
+                        # Relaxed thresholds: distant species may show lower homology
+                        if (hit_info['evalue'] <= evalue
+                                and hit_info['identity'] >= 20
+                                and hit_info['alignment_length'] >= 30):
+                            previous = best_hits.get(qid)
+                            if previous is None or hit_info['bitscore'] > previous['bitscore']:
+                                best_hits[qid] = hit_info
+
+            for qid, hit in best_hits.items():
+                results[qid] = {'found': True, 'hits': [hit]}
+
+            return results
+
         except Exception as e:
             print(f"Diamond search error: {e}")
-            return False, {'found': False, 'error': str(e)}
-    
+            return results
+        finally:
+            self._cleanup_temp_files([
+                path for path in (temp_query_path, temp_output_path) if path
+            ])
+
+    def _run_diamond_search(self, query_seq: str, genome_file: str,
+                            evalue: float = 1e-5) -> Tuple[bool, Dict[str, Any]]:
+        """Backward-compatible single-query search (uses the genome DB cache)."""
+        results = self._run_diamond_batch([('query', query_seq)], genome_file, evalue)
+        detail = results.get('query', {'found': False, 'hits': []})
+        return detail['found'], detail
+
     def _cleanup_temp_files(self, file_paths: List[str]):
         """Clean up temporary files"""
         for file_path in file_paths:
@@ -463,11 +589,23 @@ class CultivationAnalyzer:
                     os.unlink(file_path)
             except Exception as e:
                 print(f"Clean up temporary files failed {file_path}: {e}")
+
+    def _cleanup_temp_dirs(self):
+        """Remove DIAMOND genome databases created during this session."""
+        for work_dir in self._temp_dirs:
+            FileUtils.cleanup_temp_files([work_dir])
+        self._temp_dirs = []
+        self._genome_db_cache = {}
     
     def analyze_genome(self, genome_file: str) -> Dict[str, Dict[str, Any]]:
         """
         Analyze metabolic pathways in genome (amino acid, vitamin, coenzyme, nucleotide synthesis and ATPase metabolism)
-        
+
+        All reference proteins from all pathways are searched against a single
+        genome DIAMOND database in one blastp run. The database is built once
+        per genome and reused, instead of rebuilding it for every reference
+        protein.
+
         Args:
             genome_file: genome file path
             
@@ -477,26 +615,40 @@ class CultivationAnalyzer:
         if not os.path.exists(genome_file):
             print(f"Error: Genome file does not exist: {genome_file}")
             return {}
-        
-        results = {}
-        
+
         # Merge all pathways
         all_pathways = {**self.amino_acid_pathways, **self.vitamin_pathways, **self.nucleotide_pathways, **self.atp_pathways}
-        
-        # Analyze each pathway
+
+        # Parse reference genes and build one combined query set
+        pathway_genes: Dict[str, Dict[str, Dict[str, str]]] = {}
+        queries: List[Tuple[str, str]] = []
+        gene_query_ids: Dict[Tuple[str, str], str] = {}
+
+        query_index = 0
         for pathway_name, fasta_file in all_pathways.items():
             if not os.path.exists(fasta_file):
                 print(f"Warning: FASTA file does not exist: {fasta_file}")
                 continue
-            
+
             # Parse FASTA file to get genes
             genes = self._parse_fasta_file(fasta_file)
-            
+
             if not genes:
                 print(f"Warning: Cannot parse from {fasta_file} parse genes")
                 continue
-            
-            # Analyze pathway
+
+            pathway_genes[pathway_name] = genes
+            for gene_name, gene_info in genes.items():
+                query_index += 1
+                query_id = f"p{query_index}"
+                queries.append((query_id, gene_info['sequence']))
+                gene_query_ids[(pathway_name, gene_name)] = query_id
+
+        # One blastp run for the whole proteome
+        match_results = self._run_diamond_batch(queries, genome_file) if queries else {}
+
+        results: Dict[str, Dict[str, Any]] = {}
+        for pathway_name, genes in pathway_genes.items():
             pathway_result = {
                 'pathway': pathway_name,
                 'total_genes': len(genes),
@@ -505,41 +657,29 @@ class CultivationAnalyzer:
                 'gene_details': {},
                 'completeness': 0.0
             }
-            
-            # Record found genes to avoid duplicate alignment
+
             found_genes = set()
-            
-            # Align each gene
+
             for gene_name, gene_info in genes.items():
-                # If gene already found, skip
-                if gene_name in found_genes:
-                    pathway_result['gene_details'][gene_name] = {
-                        'found': True,
-                        'match_type': 'duplicate',
-                        'description': gene_info['description']
-                    }
-                    pathway_result['found_genes'] += 1
-                    continue
-                
-                # Use Diamond for sequence alignment
-                found, match_details = self._run_diamond_search(
-                    gene_info['sequence'], 
-                    genome_file
+                query_id = gene_query_ids[(pathway_name, gene_name)]
+                match_details = match_results.get(
+                    query_id, {'found': False, 'hits': []}
                 )
-                
+                found = match_details['found']
+
                 pathway_result['gene_details'][gene_name] = {
                     'found': found,
                     'match_details': match_details,
                     'description': gene_info['description']
                 }
-                
+
                 if found:
                     found_genes.add(gene_name)
                     pathway_result['found_genes'] += 1
                     print(f"Found {pathway_name} pathway {gene_name} gene")
                 else:
                     pathway_result['missing_genes'].append(gene_name)
-            
+
             # Calculate completeness
             if pathway_result['total_genes'] > 0:
                 # Check if this pathway uses step-based completeness logic
@@ -555,9 +695,9 @@ class CultivationAnalyzer:
                     pathway_result['total_steps'] = total_steps
                 else:
                     pathway_result['completeness'] = pathway_result['found_genes'] / pathway_result['total_genes']
-            
+
             results[pathway_name] = pathway_result
-        
+
         return results
     
     def _evaluate_step_based_completeness(self, pathway_name: str, step_rules: Dict, found_genes: set) -> Tuple[int, List[Dict]]:

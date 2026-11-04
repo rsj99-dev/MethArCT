@@ -7,11 +7,11 @@ A comprehensive bioinformatics tool for analyzing metabolic pathways
 in methanogenic archaea using Diamond BLAST and other analysis tools.
 
 Author: MethArCT Development Team
-Version: 0.7.1
+Version: 0.7.3
 License: GPL-3.0
 """
 
-__version__ = "0.7.1"
+__version__ = "0.7.3"
 __author__ = "MethArCT Development Team"
 __email__ = "rsj1999@njtech.edu.cn"
 __license__ = "GPL-3.0"
@@ -20,7 +20,9 @@ __description__ = "Methanogenic Archaea Metabolic Pathway Analysis Tool"
 def __getattr__(name):
     """Lazy import of heavy modules to avoid import errors when dependencies are missing."""
     _lazy_imports = {
+        'MethArCTAnalyzer': '.analyzer',
         'DiamondAnalyzer': '.core.diamond_analyzer',
+        'CultivationAnalyzer': '.core.cultivation_analyzer',
         'HuainanziAnalyzer': '.core.huainanzi_analyzer',
         'CheckM2Analyzer': '.core.checkm2_analyzer',
         'AntibioticAnalyzer': '.core.antibiotic_analyzer',
@@ -37,7 +39,9 @@ def __getattr__(name):
 
 # Define public API
 __all__ = [
+    "MethArCTAnalyzer",
     "DiamondAnalyzer",
+    "CultivationAnalyzer",
     "HuainanziAnalyzer",
     "CheckM2Analyzer",
     "AntibioticAnalyzer",
