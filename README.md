@@ -233,6 +233,113 @@ pip install imbalanced-learn>=0.10.0
 pip install scikit-learn>=1.0 numpy>=1.20
 ```
 
+## AI-Ready Interface (v0.8.0)
+
+MethArCT 0.8.0 adds an **additive** AI layer (`metharct/ai/`) that makes the
+toolkit callable by scripts and by local agent hosts. **No scientific
+algorithm, threshold, database, model file or legacy output changed.**
+
+Three independent usage paths:
+
+| Path | Entry point |
+|---|---|
+| Legacy (unchanged) | `metharct comprehensive protein.faa -o results/` |
+| Python / JSON CLI | `metharct.ai.MethArCTClient`, `metharct capabilities --format json` |
+| MCP (optional) | `metharct-mcp --workspace ./metharct_workspace` |
+
+### Quick start (Python)
+
+```python
+from metharct.ai import MethArCTClient
+
+client = MethArCTClient(workspace="./metharct_workspace")
+print(client.get_capabilities()["software"]["version"])   # which modules really work here
+
+info = client.inspect_input("protein.faa")                # validate before spending compute
+job = client.run_analysis("protein.faa", modules=["temperature", "ph"])
+print(job["job_id"], job["status"])
+
+summary = client.get_result_summary(job["job_id"])
+print(summary["modules"]["temperature"]["values"])
+```
+
+### Quick start (machine-readable CLI)
+
+```bash
+metharct capabilities --format json
+metharct doctor --format json
+metharct inspect protein.faa --format json
+metharct run protein.faa --modules temperature,ph --format json
+metharct result <job_id> --format json
+```
+
+In `--format json` mode stdout contains exactly one UTF-8 JSON object and all
+diagnostics go to stderr; exit code `0` = success, `1` = error, `3` = job
+failed/partial. Legacy subcommands keep their original text output and do not
+gain a `--format` flag.
+
+### Quick start (MCP)
+
+```bash
+pip install ".[mcp]"          # requires Python >= 3.10 (MCP SDK constraint)
+metharct-mcp --workspace ./metharct_workspace
+```
+
+Eight tools (`metharct_capabilities`, `metharct_doctor`,
+`metharct_inspect_input`, `metharct_run_analysis`,
+`metharct_get_job_status`, `metharct_get_result_summary`,
+`metharct_read_artifact`, `metharct_cancel_job`) plus four documentation
+resources. The MCP SDK is optional (supported range `mcp>=1.2`, both the 1.x
+`FastMCP` and the 2.x `MCPServer` API); MethArCT runs without it, and on
+Python 3.8/3.9 `metharct doctor` explains that the MCP server needs 3.10+.
+
+### What a job produces
+
+```text
+metharct_workspace/jobs/<job_id>/
+├── job.json                  # state machine record
+├── metharct_ai_report.json   # unified report (schema_version 1.0)
+├── manifest.json             # artifact whitelist
+├── logs/{stdout,stderr}.log
+└── artifacts/                # the original MethArCT output files
+```
+
+`metharct_ai_report.json` records the software version, the input SHA-256,
+per-module status, values with units, evidence, limitations, artifact hashes
+and the parameters/models used. Missing values are `null` — never `0`, never
+"not detected" — and a module that produced no usable value is reported
+`partial`, never `success`.
+
+### Documentation
+
+| Document | Content |
+|---|---|
+| [docs/AI_ADAPTATION_AUDIT.md](docs/AI_ADAPTATION_AUDIT.md) | pre-upgrade audit: real API, CLI, outputs, tests, risks |
+| [docs/AI_ADAPTATION_REPORT.md](docs/AI_ADAPTATION_REPORT.md) | delivery report: verification, file inventory, milestones, rollback |
+| [docs/AI_API.md](docs/AI_API.md) | Python API, CLI JSON mode, job states, error codes |
+| [docs/MCP_TOOLS.md](docs/MCP_TOOLS.md) | MCP tools, schemas, host configuration |
+| [docs/AI_REPORT_SCHEMA.md](docs/AI_REPORT_SCHEMA.md) | report/artifact field reference |
+| [docs/SECURITY.md](docs/SECURITY.md) | path whitelists, process execution, limits |
+| [knowledge/README.md](knowledge/README.md) | curated module/biology/interpretation knowledge |
+| [CHANGELOG.md](CHANGELOG.md) | 0.8.0 changes and compatibility statement |
+
+### Tests
+
+```bash
+pip install -r requirements-dev.txt     # contributors only; end users need requirements.txt
+python -m pytest tests -q
+```
+
+`tests/regression/` freezes the legacy CLI arguments, the analyzer signatures,
+the config schema and the packaging contract (`requirements.txt` must not ship
+dev tooling). `tests/ai/` covers validators, capabilities, jobs, artifacts,
+serializers, the report schema, the CLI JSON mode and one real end-to-end job.
+`tests/ai/test_mcp_integration.py` drives a real MCP `ClientSession` over stdio
+and therefore runs on Python 3.10+ only (it skips with that reason elsewhere).
+
+Verified on Python 3.8.20 (`172 passed, 6 skipped`) and Python 3.12.7 with
+`mcp 2.3.0` + `jsonschema 4.26.0` (`177 passed, 1 skipped`).
+
 ## LoongArch Support
 
 > **Note**: The LoongArch branch currently supports only the following processors:

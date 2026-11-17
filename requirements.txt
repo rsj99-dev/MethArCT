@@ -1,4 +1,8 @@
-# Core dependencies
+# Runtime dependencies for MethArCT.
+#
+# These are also used as ``install_requires`` by setup.py, so nothing that is
+# only needed for development, testing or documentation may appear here.
+# Development tooling lives in requirements-dev.txt.
 biopython>=1.79
 pandas>=1.3.0
 numpy>=1.21.0
@@ -11,15 +15,3 @@ hmmlearn>=0.3.0
 loguru>=0.6.0
 shap>=0.40.0
 openpyxl>=3.0.0
-
-# Development dependencies
-pytest>=7.0
-pytest-cov>=4.0
-black>=23.0
-flake8>=6.0
-mypy>=1.0
-
-# Documentation dependencies
-sphinx>=7.0
-sphinx-rtd-theme>=1.0
-myst-parser>=2.0

@@ -1,0 +1,22 @@
+# Development, test and documentation tooling.
+#
+#   pip install -r requirements-dev.txt
+#
+# This file is NOT used by setup.py. Only requirements.txt feeds
+# ``install_requires`` so that end users do not install linters or Sphinx.
+-r requirements.txt
+
+# Test tooling
+pytest>=7.0
+pytest-cov>=4.0
+jsonschema>=4.0
+
+# Static analysis / formatting
+black>=23.0
+flake8>=6.0
+mypy>=1.0
+
+# Documentation
+sphinx>=7.0
+sphinx-rtd-theme>=1.0
+myst-parser>=2.0

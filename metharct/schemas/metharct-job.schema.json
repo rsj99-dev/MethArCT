@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rsj99-dev/MethArCT/schemas/metharct-job.schema.json",
+  "title": "MethArCT job record",
+  "description": "Schema of jobs/<job_id>/job.json. Absolute host paths are stored for local execution but stripped from every agent-facing view.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "job_id",
+    "status",
+    "phase",
+    "created_at",
+    "requested_modules",
+    "completed_modules",
+    "failed_modules",
+    "skipped_modules",
+    "report_path",
+    "artifacts",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "job_id": { "type": "string", "pattern": "^job_[0-9T]+_[0-9a-f]+$" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "validating",
+        "running",
+        "succeeded",
+        "partially_succeeded",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "phase": { "type": "string" },
+    "created_at": { "type": "string" },
+    "started_at": { "type": ["string", "null"] },
+    "finished_at": { "type": ["string", "null"] },
+    "duration_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "input_file": { "type": "string" },
+    "input_filename": { "type": "string" },
+    "input_type": { "type": "string" },
+    "input_sha256": { "type": ["string", "null"] },
+    "input_evidence": { "type": "object" },
+    "requested_modules": { "type": "array", "items": { "type": "string" } },
+    "completed_modules": { "type": "array", "items": { "type": "string" } },
+    "failed_modules": { "type": "array", "items": { "type": "string" } },
+    "skipped_modules": { "type": "array", "items": { "type": "string" } },
+    "options": { "type": "object" },
+    "metadata": { "type": "object" },
+    "timeout_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "idempotency_key": { "type": ["string", "null"] },
+    "report_path": { "type": "string" },
+    "artifacts": { "type": "array" },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "error_code": { "type": ["string", "null"] },
+    "pid": { "type": ["integer", "null"] },
+    "cancel_requested": { "type": "boolean" },
+    "workspace": { "type": "string" },
+    "config_file": { "type": ["string", "null"] },
+    "progress": {
+      "type": "object",
+      "required": ["current_module", "completed", "total"],
+      "properties": {
+        "current_module": { "type": ["string", "null"] },
+        "completed": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

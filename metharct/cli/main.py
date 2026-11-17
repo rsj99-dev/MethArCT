@@ -25,6 +25,7 @@ try:
         antibiotic_command,
         batch_command,
     )
+    from .ai_commands import AI_COMMANDS, add_ai_subparsers, run_ai_command
 except ImportError as e:
     print(f"Error importing modules: {e}")
     print("Please make sure MethArCT is properly installed.")
@@ -164,6 +165,9 @@ For more information, visit: https://github.com/rsj99-dev/MethArCT
         description='Run comprehensive analysis (temperature, pH, salinity, substrate metabolism, amino acids, antibiotics) for all .faa files in a folder and output a summary CSV'
     )
     _add_batch_args(batch_parser)
+
+    # AI-ready commands (capabilities / doctor / inspect / run / result / artifact / cancel / jobs)
+    add_ai_subparsers(subparsers)
 
     return parser
 
@@ -566,6 +570,12 @@ def main():
         if not args.command:
             parser.print_help()
             sys.exit(1)
+
+        # AI-ready subcommands manage their own inputs, outputs and exit codes.
+        # Dispatch before the legacy input/output handling so their semantics
+        # (and their machine-readable stdout) stay unchanged.
+        if args.command in AI_COMMANDS:
+            sys.exit(run_ai_command(args))
         
         try:
             # Setup logging

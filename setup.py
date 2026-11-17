@@ -42,7 +42,7 @@ def get_version():
             for line in f:
                 if line.startswith("__version__"):
                     return line.split("=")[1].strip().strip('"').strip("'")
-    return "0.7.3"
+    return "0.8.0"
 
 
 def collect_database_files():
@@ -116,14 +116,27 @@ setup(
             "sphinx-rtd-theme>=1.0",
             "myst-parser>=2.0",
         ],
+        # The AI layer only needs the standard library; ``jsonschema`` enables
+        # cross-checking the bundled schemas in the test suite.
+        "ai": [
+            "jsonschema>=4.0",
+        ],
+        # Optional MCP server. MethArCT works without it. The MCP Python SDK
+        # itself requires Python >= 3.10, hence the marker.
+        "mcp": [
+            'mcp>=1.2.0; python_version >= "3.10"',
+        ],
         "full": [
             "diamond-annotator>=1.0",
             "checkm2>=1.0",
+            "jsonschema>=4.0",
+            'mcp>=1.2.0; python_version >= "3.10"',
         ]
     },
     entry_points={
         "console_scripts": [
             "metharct=metharct.cli.main:main",
+            "metharct-mcp=metharct.ai.mcp_server:main",
         ],
     },
     include_package_data=True,
@@ -131,6 +144,8 @@ setup(
         "metharct": [
             "data/*.yaml",
             "data/*.yml",
+            # Machine-readable AI JSON schemas (schema_version 1.0)
+            "schemas/*.json",
             # Supported if the databases are later moved inside the package
             "data/databases/*",
             "data/databases/**/*",

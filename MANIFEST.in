@@ -12,6 +12,7 @@ include environment.yml
 recursive-include metharct *.py
 recursive-include metharct *.yaml
 recursive-include metharct *.yml
+recursive-include metharct/schemas *.json
 recursive-include metharct/core/susha/models *.pkl
 recursive-include metharct/core/mlhuainanzi/models *.pkl
 recursive-include metharct/core/ph_predictor/models *.joblib
@@ -19,6 +20,10 @@ recursive-include metharct/core/ph_predictor/hmm *.joblib
 
 # Include reference databases (installed via data_files in setup.py)
 recursive-include data/databases *
+
+# Include AI-layer documentation and knowledge base
+recursive-include docs *.md
+recursive-include knowledge *.md
 
 # Exclude cache and compiled files
 global-exclude __pycache__
